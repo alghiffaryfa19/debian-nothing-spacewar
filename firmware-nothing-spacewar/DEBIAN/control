@@ -1,0 +1,8 @@
+Package: firmware-nothing-spacewar
+Version: 1.0
+Architecture: arm64
+Maintainer: alghiffaryfa19
+Conflicts: linux-firmware
+Replaces: linux-firmware
+Depends: hexagonrpcd
+Description: Firmware blobs for Nothing Phone 1

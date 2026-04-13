@@ -1,0 +1,6 @@
+Package: alsa-nothing-spacewar
+Version: 1.0
+Architecture: arm64
+Maintainer: alghiffaryfa19
+Depends: alsa-ucm-conf
+Description: Alsa Use Case Configuration for Nothing Phone 1

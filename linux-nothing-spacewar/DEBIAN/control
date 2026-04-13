@@ -1,0 +1,6 @@
+Package: linux-nothing-spacewar
+Version: 6.19.0
+Architecture: arm64
+Maintainer: alghiffaryfa19
+Section: kernel
+Description: Kernel and Modules for Nothing Phone 1
