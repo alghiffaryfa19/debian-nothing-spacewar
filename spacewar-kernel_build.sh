@@ -21,7 +21,7 @@ export STRIP="llvm-strip"
 git clone https://github.com/sc7280-mainline/linux.git --depth 1 linux
 cd linux
 
-wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
+CROSS_COMPILE=aarch64-linux-gnu- TOOLCHAIN_PREFIX=aarch64-linux-gnu- O=out ARCH=arm64 make defconfig
 
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
@@ -31,8 +31,8 @@ sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-nothing-spacewar/DEB
 
 chmod +x ../mkbootimg
 
-cat arch/arm64/boot/Image arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb > Image-dtb_spacewar
-mv Image-dtb_spacewar zImage_spacewar
+cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb > Image.gz-dtb_spacewar
+mv Image.gz-dtb_spacewar zImage_spacewar
 ../mkbootimg --kernel zImage_spacewar --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_spacewar_dualboot.img
 ../mkbootimg --kernel zImage_spacewar --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_spacewar_singleboot.img
 
