@@ -62,7 +62,7 @@ jobs:
 
           echo "📂 Downloaded files:"
           ls -lah *.deb
-          cp *.deb rootfs/
+          sudo cp *.deb rootfs/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
