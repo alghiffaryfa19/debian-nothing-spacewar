@@ -21,7 +21,7 @@ export STRIP="llvm-strip"
 git clone https://github.com/sc7280-mainline/linux.git --depth 1 linux
 cd linux
 
-CROSS_COMPILE=aarch64-linux-gnu- TOOLCHAIN_PREFIX=aarch64-linux-gnu- O=out ARCH=arm64 make defconfig
+wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
 
 make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
 _kernel_version="$(make kernelrelease -s)"
