@@ -55,7 +55,7 @@ jobs:
 
           echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
 
-          gh release download "kernel-$KERNEL_VER" \
+          gh release download "kernel-6.19" \
             --pattern "*.deb" \
             --repo "${{ github.repository }}" \
             --clobber
