@@ -69,9 +69,8 @@ jobs:
 
       - name: Install kernel & firmware
         run: |
-          sudo chroot rootfs bash -c "dpkg -i /tmp/debs/*.deb || true"
-          sudo chroot rootfs apt update
-          sudo chroot rootfs apt -y -f install
+          sudo chroot rootfs bash -c "apt update"
+          sudo chroot rootfs bash -c "apt install -y /tmp/debs/*.deb"
       # =========================
       # 3. GENERATE INITRAMFS
       # =========================
