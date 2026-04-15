@@ -94,7 +94,9 @@ jobs:
       - name: Generate initramfs
         run: |
           KVER=$(ls rootfs/lib/modules)
+          sudo mount --bind /proc rootfs/proc
           sudo chroot rootfs update-initramfs -c -k $KVER
+          sudo umount rootfs/proc
 
       # =========================
       # 4. BUILD ROOTFS IMAGE
@@ -115,7 +117,7 @@ jobs:
       - name: Extract kernel & initrd
         run: |
           KVER=$(ls rootfs/lib/modules)
-          cp rootfs/boot/vmlinuz-* vmlinuz
+          cp rootfs/boot/vmlinuz vmlinuz
           cp rootfs/boot/initrd.img-* initrd.img
 
       - name: Build boot.img
@@ -141,3 +143,4 @@ jobs:
           path: |
             boot.img
             rootfs.img
+            initrd.img
