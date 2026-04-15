@@ -67,10 +67,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Mount pseudo filesystems
+        run: |
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
       - name: Install kernel & firmware
         run: |
+          sudo cp /etc/resolv.conf rootfs/etc/
+
           sudo chroot rootfs bash -c "apt update"
-          sudo chroot rootfs bash -c "apt install -y /tmp/debs/*.deb"
+          sudo chroot rootfs bash -c "apt install -y /tmp/debs/*.deb || apt -f install -y"
+
+      - name: Cleanup mounts
+        run: |
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
       # =========================
       # 3. GENERATE INITRAMFS
       # =========================
