@@ -1,126 +1,126 @@
 name: Build Debian RootFS & Boot Image
 
 on:
-workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
-build:
-runs-on: ubuntu-22.04
+  build:
+    runs-on: ubuntu-22.04
 
-steps:
-  - name: Checkout repo
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-  - name: Install dependencies
-    run: |
-      sudo apt update
-      sudo apt install -y \
-        debootstrap \
-        qemu-user-static \
-        binfmt-support \
-        kpartx \
-        dosfstools \
-        e2fsprogs \
-        initramfs-tools \
-        android-sdk-libsparse-utils \
-        python3
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            debootstrap \
+            qemu-user-static \
+            binfmt-support \
+            kpartx \
+            dosfstools \
+            e2fsprogs \
+            initramfs-tools \
+            android-sdk-libsparse-utils \
+            python3
 
-  # =========================
-  # 1. CREATE ROOTFS
-  # =========================
-  - name: Create Debian rootfs
-    run: |
-      sudo debootstrap --arch=arm64 --foreign trixie rootfs http://deb.debian.org/debian
-      sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
-      sudo chroot rootfs /debootstrap/debootstrap --second-stage
+      # =========================
+      # 1. CREATE ROOTFS
+      # =========================
+      - name: Create Debian rootfs
+        run: |
+          sudo debootstrap --arch=arm64 --foreign trixie rootfs http://deb.debian.org/debian
+          sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
+          sudo chroot rootfs /debootstrap/debootstrap --second-stage
 
-  - name: Setup base system
-    run: |
-      sudo chroot rootfs apt update
-      sudo chroot rootfs apt install -y \
-        systemd \
-        sudo \
-        ssh \
-        net-tools \
-        ifupdown \
-        initramfs-tools
+      - name: Setup base system
+        run: |
+          sudo chroot rootfs apt update
+          sudo chroot rootfs apt install -y \
+            systemd \
+            sudo \
+            ssh \
+            net-tools \
+            ifupdown \
+            initramfs-tools
 
-  # =========================
-  # 2. INSTALL YOUR DEB FILES
-  # =========================
+      # =========================
+      # 2. INSTALL YOUR DEB FILES
+      # =========================
 
-  - name: "📥 Download kernel bundle"
-    run: |
-      KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
+      - name: "📥 Download kernel bundle"
+        run: |
+          KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
 
-      echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
+          echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
 
-      gh release download "kernel-$KERNEL_VER" \
-        --pattern "*.deb" \
-        --repo "${{ github.repository }}" \
-        --clobber
+          gh release download "kernel-$KERNEL_VER" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
 
-      echo "📂 Downloaded files:"
-      ls -lah *.deb
-      cp *.deb rootfs/
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "📂 Downloaded files:"
+          ls -lah *.deb
+          cp *.deb rootfs/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  - name: Install kernel & firmware
-    run: |
-      sudo chroot rootfs dpkg -i /*.deb || true
-      sudo chroot rootfs apt -f install -y
+      - name: Install kernel & firmware
+        run: |
+          sudo chroot rootfs dpkg -i /*.deb || true
+          sudo chroot rootfs apt -f install -y
 
-  # =========================
-  # 3. GENERATE INITRAMFS
-  # =========================
-  - name: Generate initramfs
-    run: |
-      KVER=$(ls rootfs/lib/modules)
-      sudo chroot rootfs update-initramfs -c -k $KVER
+      # =========================
+      # 3. GENERATE INITRAMFS
+      # =========================
+      - name: Generate initramfs
+        run: |
+          KVER=$(ls rootfs/lib/modules)
+          sudo chroot rootfs update-initramfs -c -k $KVER
 
-  # =========================
-  # 4. BUILD ROOTFS IMAGE
-  # =========================
-  - name: Create rootfs.img
-    run: |
-      dd if=/dev/zero of=rootfs.img bs=1M count=4096
-      mkfs.ext4 rootfs.img
+      # =========================
+      # 4. BUILD ROOTFS IMAGE
+      # =========================
+      - name: Create rootfs.img
+        run: |
+          dd if=/dev/zero of=rootfs.img bs=1M count=4096
+          mkfs.ext4 rootfs.img
 
-      mkdir mnt
-      sudo mount rootfs.img mnt
-      sudo cp -a rootfs/* mnt/
-      sudo umount mnt
+          mkdir mnt
+          sudo mount rootfs.img mnt
+          sudo cp -a rootfs/* mnt/
+          sudo umount mnt
 
-  # =========================
-  # 5. BUILD BOOT.IMG
-  # =========================
-  - name: Extract kernel & initrd
-    run: |
-      KVER=$(ls rootfs/lib/modules)
-      cp rootfs/boot/vmlinuz-* vmlinuz
-      cp rootfs/boot/initrd.img-* initrd.img
+      # =========================
+      # 5. BUILD BOOT.IMG
+      # =========================
+      - name: Extract kernel & initrd
+        run: |
+          KVER=$(ls rootfs/lib/modules)
+          cp rootfs/boot/vmlinuz-* vmlinuz
+          cp rootfs/boot/initrd.img-* initrd.img
 
-  - name: Build boot.img
-    run: |
-      git clone https://github.com/osm0sis/mkbootimg.git
-      cd mkbootimg
+      - name: Build boot.img
+        run: |
+          git clone https://github.com/osm0sis/mkbootimg.git
+          cd mkbootimg
 
-      python3 mkbootimg.py \
-        --kernel ../vmlinuz \
-        --ramdisk ../initrd.img \
-        --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/userdata rootwait rw" \
-        --base 0x00000000 \
-        --pagesize 4096 \
-        -o ../boot.img
+          python3 mkbootimg.py \
+            --kernel ../vmlinuz \
+            --ramdisk ../initrd.img \
+            --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/userdata rootwait rw" \
+            --base 0x00000000 \
+            --pagesize 4096 \
+            -o ../boot.img
 
-  # =========================
-  # 6. UPLOAD ARTIFACT
-  # =========================
-  - name: Upload artifacts
-    uses: actions/upload-artifact@v4
-    with:
-      name: debian-port
-      path: |
-        boot.img
-        rootfs.img
+      # =========================
+      # 6. UPLOAD ARTIFACT
+      # =========================
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-port
+          path: |
+            boot.img
+            rootfs.img
