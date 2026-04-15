@@ -109,7 +109,7 @@ jobs:
           python3 mkbootimg.py \
             --kernel ../vmlinuz \
             --ramdisk ../initrd.img \
-            --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/userdata rootwait rw" \
+            --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/linux rootwait rw" \
             --base 0x00000000 \
             --pagesize 4096 \
             -o ../boot.img
