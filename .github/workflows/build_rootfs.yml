@@ -48,9 +48,23 @@ steps:
   # =========================
   # 2. INSTALL YOUR DEB FILES
   # =========================
-  - name: Copy debs
+
+  - name: "📥 Download kernel bundle"
     run: |
-      sudo cp debs/*.deb rootfs/
+      KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
+
+      echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
+
+      gh release download "kernel-$KERNEL_VER" \
+        --pattern "*.deb" \
+        --repo "${{ github.repository }}" \
+        --clobber
+
+      echo "📂 Downloaded files:"
+      ls -lah *.deb
+      cp *.deb rootfs/
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   - name: Install kernel & firmware
     run: |
