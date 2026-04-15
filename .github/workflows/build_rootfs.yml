@@ -36,6 +36,12 @@ jobs:
 
       - name: Setup base system
         run: |
+
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
           sudo chroot rootfs apt update
           sudo chroot rootfs apt install -y \
             systemd \
@@ -44,6 +50,11 @@ jobs:
             net-tools \
             ifupdown \
             initramfs-tools
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
 
       # =========================
       # 2. INSTALL YOUR DEB FILES
