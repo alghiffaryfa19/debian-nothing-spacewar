@@ -23,7 +23,9 @@ cd linux
 
 wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
 
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1
+make -j$(nproc) ARCH=arm64 LLVM=1
+make -j$(nproc) ARCH=arm64 LLVM=1 dtbs
+
 _kernel_version="$(make kernelrelease -s)"
 
 
@@ -37,11 +39,19 @@ ARCH=arm64
 # =========================
 # Install kernel images
 # =========================
+mkdir -p $PKGDIR/boot
+
 install -Dm644 arch/$ARCH/boot/vmlinuz.efi \
     $PKGDIR/boot/linux.efi
 
 install -Dm644 arch/$ARCH/boot/vmlinuz \
     $PKGDIR/boot/vmlinuz
+
+install -Dm644 .config \
+    $PKGDIR/boot/config-${_kernel_version}
+
+install -Dm644 System.map \
+    $PKGDIR/boot/System.map-${_kernel_version}
 
 # =========================
 # Install modules + dtbs
@@ -55,11 +65,12 @@ make -j$(nproc) \
     INSTALL_DTBS_PATH=$PKGDIR/boot/dtbs \
     modules_install dtbs_install
 
+depmod -a -b $PKGDIR $_kernel_version
+
 # =========================
 # Cleanup
 # =========================
-rm -rf $PKGDIR/lib/modules/*/build
-rm -rf $PKGDIR/lib/modules/*/source
+rm -rf $PKGDIR/lib/modules/*/{build,source} 2>/dev/null || true
 
 # =========================
 # Save kernel version info
