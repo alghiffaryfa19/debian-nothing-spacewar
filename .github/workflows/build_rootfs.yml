@@ -135,12 +135,12 @@ jobs:
         run: |
 
           mkbootimg \
-            --kernel ../vmlinuz \
-            --ramdisk ../initrd.img \
+            --kernel vmlinuz \
+            --ramdisk initrd.img \
             --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/linux rootwait rw" \
             --base 0x00000000 \
             --pagesize 4096 \
-            -o ../boot.img
+            -o boot.img
 
       # =========================
       # 6. UPLOAD ARTIFACT
