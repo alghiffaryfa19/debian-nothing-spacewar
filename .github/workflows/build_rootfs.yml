@@ -62,15 +62,16 @@ jobs:
 
           echo "📂 Downloaded files:"
           ls -lah *.deb
-          sudo cp *.deb rootfs/
+          sudo mkdir -p rootfs/tmp/debs
+          sudo cp *.deb rootfs/tmp/debs/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install kernel & firmware
         run: |
-          sudo chroot rootfs dpkg -i /*.deb || true
-          sudo chroot rootfs apt -f install -y
-
+          sudo chroot rootfs bash -c "dpkg -i /tmp/debs/*.deb || true"
+          sudo chroot rootfs apt update
+          sudo chroot rootfs apt -y -f install
       # =========================
       # 3. GENERATE INITRAMFS
       # =========================
