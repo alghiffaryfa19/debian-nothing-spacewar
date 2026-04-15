@@ -29,17 +29,44 @@ _kernel_version="$(make kernelrelease -s)"
 
 sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-nothing-spacewar/DEBIAN/control
 
-chmod +x ../mkbootimg
-
-cat arch/arm64/boot/Image.gz arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb > Image.gz-dtb_spacewar
-mv Image.gz-dtb_spacewar zImage_spacewar
-../mkbootimg --kernel zImage_spacewar --cmdline "root=PARTLABEL=linux" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_spacewar_dualboot.img
-../mkbootimg --kernel zImage_spacewar --cmdline "root=PARTLABEL=userdata" --base 0x00000000 --kernel_offset 0x00008000 --tags_offset 0x01e00000 --pagesize 4096 --id -o ../boot_spacewar_singleboot.img
-
 #rm $1/linux-nothing-spacewar/usr/dummy
 
-make -j$(nproc) ARCH=arm64 CC="ccache clang" LLVM=1 INSTALL_MOD_PATH=../linux-nothing-spacewar modules_install
-rm ../linux-nothing-spacewar/lib/modules/**/build
+PKGDIR=../linux-nothing-spacewar
+ARCH=arm64
+
+# =========================
+# Install kernel images
+# =========================
+install -Dm644 arch/$ARCH/boot/vmlinuz.efi \
+    $PKGDIR/boot/linux.efi
+
+install -Dm644 arch/$ARCH/boot/vmlinuz \
+    $PKGDIR/boot/vmlinuz
+
+# =========================
+# Install modules + dtbs
+# =========================
+make -j$(nproc) \
+    ARCH=$ARCH \
+    LLVM=1 \
+    INSTALL_PATH=$PKGDIR/boot \
+    INSTALL_MOD_PATH=$PKGDIR \
+    INSTALL_MOD_STRIP=1 \
+    INSTALL_DTBS_PATH=$PKGDIR/boot/dtbs \
+    modules_install dtbs_install
+
+# =========================
+# Cleanup
+# =========================
+rm -rf $PKGDIR/lib/modules/*/build
+rm -rf $PKGDIR/lib/modules/*/source
+
+# =========================
+# Save kernel version info
+# =========================
+mkdir -p $PKGDIR/usr/share/kernel/spacewar
+cp include/config/kernel.release \
+   $PKGDIR/usr/share/kernel/spacewar/kernel.release
 
 cd ..
 
