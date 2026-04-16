@@ -78,8 +78,7 @@ jobs:
             modemmanager \
             xwayland \
             weston \
-            seatd \
-            elogind"
+            seatd"
 
           sudo umount rootfs/dev/pts || true
           sudo umount rootfs/dev || true
