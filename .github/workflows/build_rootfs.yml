@@ -180,7 +180,7 @@ jobs:
             --kernel vmlinuz \
             --dtb sm7325-nothing-spacewar.dtb \
             --ramdisk initrd.img \
-            --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw init=/bin/sh" \
+            --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" \
             --base 0x00000000 \
             --pagesize 4096 \
             --kernel_offset 0x00008000 \
