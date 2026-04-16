@@ -56,6 +56,40 @@ jobs:
           sudo umount rootfs/proc || true
           sudo umount rootfs/sys || true
 
+      - name: Install Phosh UI
+        run: |
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+          sudo cp /etc/resolv.conf rootfs/etc/
+
+          sudo chroot rootfs bash -c "apt update"
+
+          sudo chroot rootfs bash -c "DEBIAN_FRONTEND=noninteractive apt install -y \
+            phosh \
+            phoc \
+            gnome-session \
+            gdm3 \
+            dbus \
+            systemd-sysv \
+            network-manager \
+            modemmanager \
+            xwayland \
+            weston \
+            seatd \
+            elogind"
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+
+      - name: Enable Phosh session
+        run: |
+          sudo chroot rootfs systemctl enable gdm3
       # =========================
       # 2. INSTALL YOUR DEB FILES
       # =========================
@@ -91,6 +125,15 @@ jobs:
 
           sudo chroot rootfs bash -c "apt update"
           sudo chroot rootfs bash -c "apt install -y /tmp/debs/*.deb || apt -f install -y"
+
+      - name: Set root password & create user
+        run: |
+          sudo chroot rootfs bash -c "echo 'root:root' | chpasswd"
+
+          # optional user
+          sudo chroot rootfs bash -c "useradd -m -s /bin/bash user || true"
+          sudo chroot rootfs bash -c "echo 'user:user' | chpasswd"
+          sudo chroot rootfs bash -c "usermod -aG sudo user"
 
       - name: Cleanup mounts
         run: |
@@ -129,17 +172,23 @@ jobs:
         run: |
           KVER=$(ls rootfs/lib/modules)
           cp rootfs/boot/vmlinuz vmlinuz
+          cp rootfs/boot/dts/qcom/sm7325-nothing-spacewar.dtb sm7325-nothing-spacewar.dtb
           cp rootfs/boot/initrd.img-* initrd.img
 
       - name: Build boot.img
         run: |
-
           mkbootimg \
             --kernel vmlinuz \
+            --dtb sm7325-nothing-spacewar.dtb \
             --ramdisk initrd.img \
-            --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/linux rootwait rw" \
+            --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw init=/bin/sh" \
             --base 0x00000000 \
             --pagesize 4096 \
+            --kernel_offset 0x00008000 \
+            --ramdisk_offset 0x01000000 \
+            --tags_offset 0x00000100 \
+            --dtb_offset 0x01f00000 \
+            --header_version 2 \
             -o boot.img
 
       # =========================
