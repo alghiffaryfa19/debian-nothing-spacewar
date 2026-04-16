@@ -171,7 +171,7 @@ jobs:
         run: |
           KVER=$(ls rootfs/lib/modules)
           cp rootfs/boot/vmlinuz vmlinuz
-          cp rootfs/boot/dts/qcom/sm7325-nothing-spacewar.dtb sm7325-nothing-spacewar.dtb
+          cp rootfs/boot/dtbs/qcom/sm7325-nothing-spacewar.dtb sm7325-nothing-spacewar.dtb
           cp rootfs/boot/initrd.img-* initrd.img
 
       - name: Build boot.img
