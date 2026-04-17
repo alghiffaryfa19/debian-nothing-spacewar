@@ -1,0 +1,215 @@
+name: Build Ubuntu RootFS & Boot Image
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            debootstrap \
+            qemu-user-static \
+            binfmt-support \
+            kpartx \
+            dosfstools \
+            e2fsprogs \
+            initramfs-tools \
+            android-sdk-libsparse-utils \
+            python3 \
+            mkbootimg \
+            git \
+            wget
+
+      # =========================
+      # 1. CREATE ROOTFS (UBUNTU)
+      # =========================
+      - name: Create Ubuntu rootfs
+        run: |
+          sudo debootstrap --arch=arm64 --foreign noble rootfs http://archive.ubuntu.com/ubuntu
+          sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
+          sudo chroot rootfs /debootstrap/debootstrap --second-stage
+
+      # =========================
+      # 2. BASE SYSTEM
+      # =========================
+      - name: Setup base system
+        run: |
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+          sudo chroot rootfs apt update
+          sudo chroot rootfs apt install -y \
+            systemd \
+            sudo \
+            ssh \
+            net-tools \
+            ifupdown \
+            initramfs-tools \
+            ca-certificates \
+            gnupg \
+            iproute2
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      # =========================
+      # 3. PHOSH DESKTOP (UBUNTU)
+      # =========================
+      - name: Install Phosh UI
+        run: |
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+          sudo cp /etc/resolv.conf rootfs/etc/
+
+          sudo chroot rootfs bash -c "apt update"
+
+          sudo chroot rootfs bash -c "DEBIAN_FRONTEND=noninteractive apt install -y \
+            phosh \
+            phoc \
+            gnome-session \
+            gdm3 \
+            dbus \
+            systemd-sysv \
+            network-manager \
+            modemmanager \
+            xwayland \
+            weston \
+            seatd \
+            gnome-terminal \
+            gnome-software"
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      # =========================
+      # 4. ENABLE DISPLAY MANAGER
+      # =========================
+      - name: Enable GDM
+        run: |
+          sudo chroot rootfs systemctl enable gdm3
+
+      # =========================
+      # 5. DOWNLOAD KERNEL DEB
+      # =========================
+      - name: Download kernel bundle
+        run: |
+          gh release download "kernel-6.19" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+          sudo mkdir -p rootfs/tmp/debs
+          sudo cp *.deb rootfs/tmp/debs/
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # =========================
+      # 6. INSTALL KERNEL INTO ROOTFS
+      # =========================
+      - name: Install kernel & firmware
+        run: |
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+
+          sudo cp /etc/resolv.conf rootfs/etc/
+
+          sudo chroot rootfs apt update
+          sudo chroot rootfs bash -c "DEBIAN_FRONTEND=noninteractive apt install -y /tmp/debs/*.deb || apt -f install -y"
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
+
+      # =========================
+      # 7. USERS
+      # =========================
+      - name: Create users
+        run: |
+          sudo chroot rootfs bash -c "echo 'root:root' | chpasswd"
+          sudo chroot rootfs bash -c "useradd -m -s /bin/bash user || true"
+          sudo chroot rootfs bash -c "echo 'user:user' | chpasswd"
+          sudo chroot rootfs bash -c "usermod -aG sudo user"
+
+      # =========================
+      # 8. INITRAMFS (UBUNTU FIXED)
+      # =========================
+      - name: Generate initramfs
+        run: |
+          KVER=$(ls rootfs/lib/modules | head -n 1)
+
+          sudo mount --bind /proc rootfs/proc
+          sudo chroot rootfs update-initramfs -c -k $KVER
+          sudo umount rootfs/proc
+
+      # =========================
+      # 9. ROOTFS IMAGE
+      # =========================
+      - name: Create rootfs.img
+        run: |
+          dd if=/dev/zero of=rootfs.img bs=1M count=4096
+          mkfs.ext4 rootfs.img
+
+          mkdir -p mnt
+          sudo mount rootfs.img mnt
+          sudo cp -a rootfs/* mnt/
+          sudo umount mnt
+
+      # =========================
+      # 10. BOOT IMAGE
+      # =========================
+      - name: Extract kernel
+        run: |
+          KVER=$(ls rootfs/lib/modules | head -n 1)
+
+          cp rootfs/boot/vmlinuz-* vmlinuz
+          cp rootfs/boot/initrd.img-* initrd.img
+          cp rootfs/boot/dtbs/qcom/sm7325-nothing-spacewar.dtb dtb
+
+      - name: Build boot.img
+        run: |
+          mkbootimg \
+            --kernel vmlinuz \
+            --dtb dtb \
+            --ramdisk initrd.img \
+            --cmdline "console=ttyMSM0,115200 root=/dev/disk/by-partlabel/linux rw rootwait" \
+            --base 0x00000000 \
+            --pagesize 4096 \
+            --kernel_offset 0x00008000 \
+            --ramdisk_offset 0x01000000 \
+            --tags_offset 0x00000100 \
+            --dtb_offset 0x01f00000 \
+            --header_version 2 \
+            -o boot.img
+
+      # =========================
+      # 11. ARTIFACT
+      # =========================
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubuntu-noble-port
+          path: |
+            boot.img
+            rootfs.img
+            initrd.img
