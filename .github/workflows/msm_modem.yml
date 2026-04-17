@@ -13,73 +13,29 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y git build-essential devscripts debhelper dh-make meson ninja-build pkg-config tree
+          sudo apt install -y git build-essential devscripts debhelper meson ninja-build pkg-config tree
 
-      - name: Clone source
+      - name: Clone msm-modem source
         run: |
           git clone https://gitlab.postmarketos.org/postmarketOS/msm-modem.git
           cd msm-modem
           git submodule update --init --recursive
 
-      - name: Prepare Debian packaging
-        working-directory: msm-modem
+      - name: Copy Debian packaging
         run: |
-          export DEBFULLNAME="GitHub CI"
-          export DEBEMAIL="ci@example.com"
+          cp -r debian msm-modem/
 
-          if [ ! -d "debian" ]; then
-            dh_make --yes -s -p msm-modem_0.1 || true
-
-            rm -f debian/*.ex debian/*.EX
-
-            cat > debian/control <<EOF
-Source: msm-modem
-Section: misc
-Priority: optional
-Maintainer: CI <ci@example.com>
-Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config
-Standards-Version: 4.6.0
-
-Package: msm-modem
-Architecture: any
-Depends: \${shlibs:Depends}, \${misc:Depends}
-Description: MSM modem daemon
- Simple modem service from postmarketOS
-EOF
-
-            cat > debian/rules <<'EOF'
-#!/usr/bin/make -f
-%:
-	dh $@ --buildsystem=meson
-
-override_dh_auto_configure:
-	dh_auto_configure -- -Dwwan-port=true -Ddownstream=true
-EOF
-
-            chmod +x debian/rules
-
-            echo "13" > debian/compat
-
-            cat > debian/changelog <<EOF
-msm-modem (0.1) unstable; urgency=medium
-
-  * Auto build from GitHub Actions
-
- -- CI <ci@example.com>  $(date -R)
-EOF
-          fi
-
-      - name: Build .deb
+      - name: Build .deb package
         working-directory: msm-modem
         run: |
           dpkg-buildpackage -us -uc -b
 
-      - name: Show result
+      - name: Show build result
         run: |
           ls -lh msm-modem/..
           tree msm-modem/..
 
-      - name: Upload artifact
+      - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: msm-modem-deb
