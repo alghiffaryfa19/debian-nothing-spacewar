@@ -13,16 +13,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y \
-            git \
-            build-essential \
-            devscripts \
-            debhelper \
-            dh-make \
-            meson \
-            ninja-build \
-            pkg-config \
-            tree
+          sudo apt install -y git build-essential devscripts debhelper dh-make meson ninja-build pkg-config tree
 
       - name: Clone source
         run: |
@@ -42,40 +33,40 @@ jobs:
             rm -f debian/*.ex debian/*.EX
 
             cat > debian/control <<EOF
-      Source: msm-modem
-      Section: misc
-      Priority: optional
-      Maintainer: CI <ci@example.com>
-      Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config
-      Standards-Version: 4.6.0
+Source: msm-modem
+Section: misc
+Priority: optional
+Maintainer: CI <ci@example.com>
+Build-Depends: debhelper-compat (= 13), meson, ninja-build, pkg-config
+Standards-Version: 4.6.0
 
-      Package: msm-modem
-      Architecture: any
-      Depends: \${shlibs:Depends}, \${misc:Depends}
-      Description: MSM modem daemon
-      Simple modem service from postmarketOS
-      EOF
+Package: msm-modem
+Architecture: any
+Depends: \${shlibs:Depends}, \${misc:Depends}
+Description: MSM modem daemon
+ Simple modem service from postmarketOS
+EOF
 
             cat > debian/rules <<'EOF'
-      #!/usr/bin/make -f
-      %:
-        dh $@ --buildsystem=meson
+#!/usr/bin/make -f
+%:
+	dh $@ --buildsystem=meson
 
-      override_dh_auto_configure:
-        dh_auto_configure -- -Dwwan-port=true -Ddownstream=true
-      EOF
+override_dh_auto_configure:
+	dh_auto_configure -- -Dwwan-port=true -Ddownstream=true
+EOF
 
             chmod +x debian/rules
 
             echo "13" > debian/compat
 
             cat > debian/changelog <<EOF
-      msm-modem (0.1) unstable; urgency=medium
+msm-modem (0.1) unstable; urgency=medium
 
-        * Auto build from GitHub Actions
+  * Auto build from GitHub Actions
 
-      -- CI <ci@example.com>  $(date -R)
-      EOF
+ -- CI <ci@example.com>  $(date -R)
+EOF
           fi
 
       - name: Build .deb
@@ -92,5 +83,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: msm-modem-deb
-          path: |
-            msm-modem/../*.deb
+          path: msm-modem/../*.deb
