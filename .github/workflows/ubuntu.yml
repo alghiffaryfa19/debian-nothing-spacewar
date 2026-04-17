@@ -53,11 +53,10 @@ jobs:
             sudo \
             ssh \
             net-tools \
-            ifupdown \
             initramfs-tools \
-            ca-certificates \
-            gnupg \
-            iproute2
+            network-manager \
+            iproute2 \
+            netplan.io
 
           sudo umount rootfs/dev/pts || true
           sudo umount rootfs/dev || true
