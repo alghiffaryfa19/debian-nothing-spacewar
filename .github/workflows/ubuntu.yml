@@ -37,6 +37,14 @@ jobs:
           sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
           sudo chroot rootfs /debootstrap/debootstrap --second-stage
 
+          sudo chroot rootfs bash -c "cat > /etc/apt/sources.list << EOF
+          deb http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse
+          deb http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse
+          deb http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse
+          EOF"
+
+          sudo chroot rootfs apt update
+
       # =========================
       # 2. BASE SYSTEM
       # =========================
@@ -80,17 +88,13 @@ jobs:
           sudo chroot rootfs bash -c "DEBIAN_FRONTEND=noninteractive apt install -y \
             phosh \
             phoc \
-            gnome-session \
-            gdm3 \
-            dbus \
-            systemd-sysv \
-            network-manager \
-            modemmanager \
-            xwayland \
             weston \
             seatd \
-            gnome-terminal \
-            gnome-software"
+            network-manager \
+            modemmanager \
+            gdm3 \
+            ubuntu-session \
+            xwayland"
 
           sudo umount rootfs/dev/pts || true
           sudo umount rootfs/dev || true
