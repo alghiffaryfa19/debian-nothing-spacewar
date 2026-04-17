@@ -185,7 +185,7 @@ jobs:
         run: |
           KVER=$(ls rootfs/lib/modules | head -n 1)
 
-          cp rootfs/boot/vmlinuz-* vmlinuz
+          cp rootfs/boot/vmlinuz vmlinuz
           cp rootfs/boot/initrd.img-* initrd.img
           cp rootfs/boot/dtbs/qcom/sm7325-nothing-spacewar.dtb dtb
 
