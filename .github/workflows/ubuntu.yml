@@ -33,7 +33,7 @@ jobs:
       # =========================
       - name: Create Ubuntu rootfs
         run: |
-          sudo debootstrap --arch=arm64 --foreign noble rootfs http://archive.ubuntu.com/ubuntu
+          sudo debootstrap --arch=arm64 --foreign noble rootfs http://ports.ubuntu.com/ubuntu-ports
           sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
           sudo chroot rootfs /debootstrap/debootstrap --second-stage
 
