@@ -52,10 +52,10 @@ install -Dm644 .config \
 install -Dm644 System.map \
     $PKGDIR/boot/System.map-${_kernel_version}
 
-
+OUTPUT_DIR="$GITHUB_WORKSPACE"
 chmod +x ../mkbootimg
-../mkbootimg --kernel arch/arm64/boot/vmlinuz --dtb arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb --ramdisk initrd.img --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" --base 0x00000000 --pagesize 4096 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 --header_version 2 -o ../boot.img
-
+../mkbootimg --kernel arch/arm64/boot/vmlinuz --dtb arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb --ramdisk initrd.img --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" --base 0x00000000 --pagesize 4096 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 --header_version 2 -o "$OUTPUT_DIR/boot.img"
+  
 # =========================
 # Install modules + dtbs
 # =========================
