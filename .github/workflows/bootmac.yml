@@ -16,12 +16,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y git build-essential devscripts debhelper meson ninja-build pkg-config tree
+          sudo apt install -y git build-essential udev systemd devscripts debhelper meson ninja-build pkg-config tree
 
       - name: Clone and build bootmac source
         run: |
-          git clone https://gitlab.postmarketos.org/postmarketOS/bootmac.git bootmac
-          cd bootmac
+          git clone https://gitlab.postmarketos.org/postmarketOS/bootmac.git bootmac_source
+          cd bootmac_source
           git submodule update --init --recursive
           meson setup output .
           meson compile -C output
