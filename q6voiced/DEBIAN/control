@@ -2,5 +2,5 @@ Package: q6voiced
 Version: 1
 Architecture: arm64
 Maintainer: alghiffaryfa19
-Depends: libdbus-1-3 libasound2
+Depends: libdbus-1-3, libasound2
 Description: q6voiced

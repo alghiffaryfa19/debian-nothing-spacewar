@@ -3,6 +3,6 @@ Version: 0.7.1
 Section: utils
 Priority: optional
 Architecture: all
-Depends: libqrtr-dev libqrtr-glib0
+Depends: libqrtr-dev, libqrtr-glib0
 Maintainer: Fauzan Amir <you@example.com>
 Description: Qualcomm PD mapper userspace daemon
