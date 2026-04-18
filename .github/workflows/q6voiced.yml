@@ -16,7 +16,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y git build-essential udev systemd devscripts debhelper meson ninja-build pkg-config tree
+          sudo apt install -y git libdbus-1-dev pkg-config build-essential udev systemd devscripts debhelper meson ninja-build pkg-config tree
 
       - name: Clone and build q6voiced source
         run: |
