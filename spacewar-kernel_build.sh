@@ -21,7 +21,7 @@ export STRIP="llvm-strip"
 git clone https://github.com/sc7280-mainline/linux.git --depth 1 linux
 cd linux
 
-wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/spacewar/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
+wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
 make -j$(nproc) ARCH=arm64 LLVM=1
 make -j$(nproc) ARCH=arm64 LLVM=1 dtbs
 
