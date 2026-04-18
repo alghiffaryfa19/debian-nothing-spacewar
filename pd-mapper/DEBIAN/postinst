@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload
+            systemctl enable pd-mapper.service
+            systemctl start pd-mapper.service
+        fi
+    ;;
+esac
+
+exit 0

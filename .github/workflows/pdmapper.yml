@@ -18,12 +18,10 @@ jobs:
           sudo apt update
           sudo apt install -y dpkg-dev fakeroot
 
-      - name: Verify DEBIAN folder
-        run: |
-          ls -R pd-mapper/DEBIAN
-
       - name: Build .deb package
         run: |
+          chmod 755 pd-mapper/DEBIAN/postinst
+          chmod 755 pd-mapper/DEBIAN/postrm
           fakeroot dpkg-deb --build pd-mapper pd-mapper.deb
 
       - name: Show output
@@ -35,3 +33,15 @@ jobs:
         with:
           name: pd-mapper-deb
           path: pd-mapper.deb
+
+      - name: "GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: pd-mapper
+          name: "pd-mapper from PMOS"
+          draft: false
+          prerelease: false
+          files: "*.deb"
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
