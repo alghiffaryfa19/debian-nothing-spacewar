@@ -21,8 +21,7 @@ export STRIP="llvm-strip"
 git clone https://github.com/sc7280-mainline/linux.git --depth 1 linux
 cd linux
 
-wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
-
+wget https://gitlab.postmarketos.org/alghiffaryfa19/pmaports/-/raw/spacewar/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
 make -j$(nproc) ARCH=arm64 LLVM=1
 make -j$(nproc) ARCH=arm64 LLVM=1 dtbs
 
@@ -52,6 +51,10 @@ install -Dm644 .config \
 
 install -Dm644 System.map \
     $PKGDIR/boot/System.map-${_kernel_version}
+
+
+chmod +x ../mkbootimg
+../mkbootimg --kernel arch/arm64/boot/vmlinuz --dtb arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb --ramdisk initrd.img --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" --base 0x00000000 --pagesize 4096 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 --header_version 2 -o ../boot.img
 
 # =========================
 # Install modules + dtbs

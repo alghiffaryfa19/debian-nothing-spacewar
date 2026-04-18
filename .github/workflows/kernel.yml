@@ -49,6 +49,20 @@ jobs:
           
           echo "📊 缓存恢复状态: ${{ steps.cache-ccache.outputs.cache-hit }}"
 
+      - name: "📥 Download initramfs"
+        run: |
+          KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
+
+          echo "⬇️ Download initramfs"
+
+          gh release download "initramfs" \
+            --pattern "*.img" \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: "🔨 编译内核"
         id: build
         run: |
@@ -93,11 +107,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
-      # - name: Upload single boot.img
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: boot_single.img
-      #     path: ${{ github.workspace }}/boot_spacewar_singleboot.img
+      - name: Upload boot.img
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot.img
+          path: ${{ github.workspace }}/boot.img
 
       # - name: Upload dual boot.img
       #   uses: actions/upload-artifact@v4
