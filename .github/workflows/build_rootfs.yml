@@ -30,7 +30,7 @@ jobs:
       # =========================
       - name: Create Debian rootfs
         run: |
-          sudo debootstrap --arch=arm64 --foreign trixie rootfs http://deb.debian.org/debian
+          sudo debootstrap --arch=arm64 --foreign forky rootfs http://deb.debian.org/debian
           sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
           sudo chroot rootfs /debootstrap/debootstrap --second-stage
 
