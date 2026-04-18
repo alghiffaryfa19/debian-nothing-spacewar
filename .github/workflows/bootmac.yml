@@ -26,7 +26,7 @@ jobs:
           meson setup output .
           meson compile -C output
           DESTDIR="tmp" meson install --no-rebuild -C output
-          cp -r output/* ../bootmac
+          cp -r output/tmp/* ../bootmac
           cd ..
           dpkg-deb --build --root-owner-group bootmac
 
