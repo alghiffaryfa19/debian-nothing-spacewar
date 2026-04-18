@@ -78,7 +78,7 @@ jobs:
             modemmanager \
             xwayland \
             weston \
-            seatd"
+            seatd qrtr-tools"
 
           sudo umount rootfs/dev/pts || true
           sudo umount rootfs/dev || true
@@ -92,6 +92,46 @@ jobs:
       # =========================
       # 2. INSTALL YOUR DEB FILES
       # =========================
+
+      - name: "📥 Download msm-modem"
+        run: |
+
+          gh release download "msm-modem" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download bootmac"
+        run: |
+
+          gh release download "bootmac" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download q6voiced"
+        run: |
+
+          gh release download "q6voiced" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download pd-mapper"
+        run: |
+
+          gh release download "pd-mapper" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "📥 Download kernel bundle"
         run: |
