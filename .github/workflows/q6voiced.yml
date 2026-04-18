@@ -1,0 +1,54 @@
+name: Build Debian Package (q6voiced)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo (INI WAJIB)
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git build-essential udev systemd devscripts debhelper meson ninja-build pkg-config tree
+
+      - name: Clone and build q6voiced source
+        run: |
+          git clone https://gitlab.postmarketos.org/postmarketOS/q6voiced.git q6voiced_source
+          cd q6voiced_source
+          git submodule update --init --recursive
+          meson setup output .
+          meson compile -C output
+          DESTDIR="tmp" meson install --no-rebuild -C output
+          cp -r output/tmp/* ../q6voiced
+          cd ..
+          dpkg-deb --build --root-owner-group q6voiced
+
+      - name: Show build result
+        run: |
+          ls -lh q6voiced/..
+          tree q6voiced/..
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: q6voiced
+          path: "*.deb"
+
+      - name: "GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: q6voiced
+          name: "q6voiced from PMOS"
+          draft: false
+          prerelease: false
+          files: "*.deb"
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
