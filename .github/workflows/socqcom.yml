@@ -1,0 +1,85 @@
+name: Build Debian Package (soc-qcom)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo (INI WAJIB)
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git tqftpserv build-essential devscripts debhelper meson ninja-build pkg-config tree
+
+      - name: "📥 Download msm-modem"
+        run: |
+
+          gh release download "msm-modem" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download bootmac"
+        run: |
+
+          gh release download "bootmac" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download q6voiced"
+        run: |
+
+          gh release download "q6voiced" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📥 Download pd-mapper"
+        run: |
+
+          gh release download "pd-mapper" \
+            --pattern "*.deb" \
+            --repo "${{ github.repository }}" \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Install dep"
+        run: |
+          sudo apt install -y ./*.deb
+
+      - name: build soc-qcom
+        run: |
+          dpkg-deb --build --root-owner-group soc-qcom
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soc-qcom
+          path: "soc-qcom.deb"
+
+      - name: "GitHub Release"
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: soc-qcom
+          name: "soc-qcom from PMOS"
+          draft: false
+          prerelease: false
+          files: "soc-qcom.deb"
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
