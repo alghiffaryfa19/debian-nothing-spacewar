@@ -24,7 +24,7 @@ jobs:
           meson -Dwwan-port=true -Ddownstream=true output .
           meson compile -C output
           DESTDIR="tmp" meson install --no-rebuild -C output
-          cp -r output/tmp ../msm-modem
+          cp -r output/tmp/* ../msm-modem
           cd ..
           dpkg-deb --build --root-owner-group msm-modem
 
@@ -40,7 +40,6 @@ jobs:
           path: "*.deb"
 
       - name: "GitHub Release"
-        if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: msm-modem
