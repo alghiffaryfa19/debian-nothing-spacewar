@@ -16,20 +16,17 @@ jobs:
           sudo apt update
           sudo apt install -y git build-essential devscripts debhelper meson ninja-build pkg-config tree
 
-      - name: Clone msm-modem source
+      - name: Clone and build msm-modem source
         run: |
           git clone https://gitlab.postmarketos.org/postmarketOS/msm-modem.git
           cd msm-modem
           git submodule update --init --recursive
-
-      - name: Copy Debian packaging
-        run: |
-          cp -r debian msm-modem/
-
-      - name: Build .deb package
-        working-directory: msm-modem
-        run: |
-          dpkg-buildpackage -us -uc -b
+          meson -Dwwan-port=true -Ddownstream=true output .
+          meson compile -C output
+          DESTDIR="tmp" meson install --no-rebuild -C output
+          cp -r output/tmp ../msm-modem
+          cd ..
+          dpkg-deb --build --root-owner-group msm-modem
 
       - name: Show build result
         run: |
@@ -39,5 +36,5 @@ jobs:
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: msm-modem-deb
+          name: msm-modem
           path: "*.deb"
