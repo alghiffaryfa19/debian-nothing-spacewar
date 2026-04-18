@@ -18,8 +18,8 @@ jobs:
 
       - name: Clone and build msm-modem source
         run: |
-          git clone https://gitlab.postmarketos.org/postmarketOS/msm-modem.git
-          cd msm-modem
+          git clone https://gitlab.postmarketos.org/postmarketOS/msm-modem.git modem_source
+          cd modem_source
           git submodule update --init --recursive
           meson -Dwwan-port=true -Ddownstream=true output .
           meson compile -C output
@@ -38,3 +38,16 @@ jobs:
         with:
           name: msm-modem
           path: "*.deb"
+
+      - name: "GitHub Release"
+        if: steps.collect_artifacts.outputs.pkg_count > 0 && github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: msm-modem
+          name: "MSM Modem from PMOS"
+          draft: false
+          prerelease: false
+          files: "*.deb"
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
