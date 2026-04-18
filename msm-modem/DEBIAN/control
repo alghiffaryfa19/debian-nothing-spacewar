@@ -2,5 +2,4 @@ Package: msm-modem
 Version: 13
 Architecture: arm64
 Maintainer: alghiffaryfa19
-Section: kernel
 Description: MSM Modem

@@ -1,0 +1,6 @@
+Package: soc-qcom
+Version: 8
+Architecture: arm64
+Maintainer: alghiffaryfa19
+Depends: msm-modem tqftpserv
+Description: soc qcom
