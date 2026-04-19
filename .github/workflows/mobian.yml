@@ -136,6 +136,11 @@ jobs:
 
       - name: Set up system
         run: |
+          sudo mount --bind /dev/pts rootfs/dev/pts
+          sudo mount --bind /dev rootfs/dev
+          sudo mount --bind /proc rootfs/proc
+          sudo mount --bind /sys rootfs/sys
+          
           sudo chroot rootfs /bin/bash -c '
             HOSTNAME="mobian"
 
@@ -154,6 +159,11 @@ jobs:
             # Disable systemd-firstboot (biar tidak minta input saat boot)
             systemctl mask systemd-firstboot.service
           '
+
+          sudo umount rootfs/dev/pts || true
+          sudo umount rootfs/dev || true
+          sudo umount rootfs/proc || true
+          sudo umount rootfs/sys || true
 
       - name: Cleanup system (Mobian)
         run: |
@@ -226,7 +236,7 @@ jobs:
       # =========================
       - name: Create rootfs.img
         run: |
-          dd if=/dev/zero of=rootfs.img bs=1M count=4096
+          dd if=/dev/zero of=rootfs.img bs=1M count=8192
           mkfs.ext4 rootfs.img
 
           mkdir mnt
