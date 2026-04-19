@@ -98,7 +98,6 @@ jobs:
             firefox-esr-mobile-config \
             mobian-phosh-phone \
             ca-certificates \
-            calamares-settings-mobian \
             device-tree-compiler \
             initramfs-tools \
             plymouth-theme-mobian \
