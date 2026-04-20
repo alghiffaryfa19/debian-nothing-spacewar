@@ -30,7 +30,7 @@ jobs:
       # =========================
       - name: Create Debian rootfs
         run: |
-          sudo debootstrap --arch=arm64 --foreign --variant=minbase --components=main,contrib,non-free-firmware trixie rootfs http://deb.debian.org/debian/
+          sudo debootstrap --arch=arm64 --foreign --variant=minbase --components=main,contrib,non-free-firmware forky rootfs http://deb.debian.org/debian/
           sudo cp /usr/bin/qemu-aarch64-static rootfs/usr/bin/
           sudo chroot rootfs /debootstrap/debootstrap --second-stage
 
@@ -59,10 +59,10 @@ jobs:
       - name: Setup Mobian repository
         run: |
           sudo chroot rootfs /bin/bash -c '
-            DEBIAN_SUITE=trixie
-            SUITE=trixie
+            DEBIAN_SUITE=forky
+            SUITE=forky
 
-            if [ "$DEBIAN_SUITE" = "bullseye" ] || [ "$DEBIAN_SUITE" = "bookworm" ] || [ "$DEBIAN_SUITE" = "trixie" ]; then
+            if [ "$DEBIAN_SUITE" = "bullseye" ] || [ "$DEBIAN_SUITE" = "bookworm" ] || [ "$DEBIAN_SUITE" = "trixie" || [ "$DEBIAN_SUITE" = "forky" ]; then
                 echo "deb http://security.debian.org/ ${DEBIAN_SUITE}-security main" >> /etc/apt/sources.list
             fi
 
@@ -213,6 +213,24 @@ jobs:
 
           sudo chroot rootfs bash -c "apt update"
           sudo chroot rootfs bash -c "apt install -y /tmp/debs/*.deb || apt -f install -y"
+
+          sudo chroot rootfs /bin/bash -c '
+            cat > /etc/systemd/system/mm-fix.service << "EOF"
+            [Unit]
+            Description=Restart ModemManager after boot
+            After=ModemManager.service
+
+            [Service]
+            Type=oneshot
+            ExecStart=/bin/sh -c "sleep 15 && systemctl restart ModemManager"
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+            systemctl daemon-reload
+            systemctl enable mm-fix
+          '
 
       - name: Cleanup mounts
         run: |
