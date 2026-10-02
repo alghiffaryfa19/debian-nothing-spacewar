@@ -87,6 +87,12 @@ cp include/config/kernel.release \
 
 cd ..
 
+git clone https://github.com/mainlining/firmware-nothing-spacewar firmware
+cd firmware
+cp -r . ../firmware-nothing-spacewar
+
+cd ..
+
 dpkg-deb --build --root-owner-group linux-nothing-spacewar
 dpkg-deb --build --root-owner-group firmware-nothing-spacewar
 dpkg-deb --build --root-owner-group alsa-nothing-spacewar

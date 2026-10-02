@@ -1,1 +1,0 @@
-{"lsm6dst_0_platform.md":{"owner":"lsm6dst","config":{"type":"grp","ver":"0","data":""}}}

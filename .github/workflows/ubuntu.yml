@@ -113,7 +113,7 @@ jobs:
       # =========================
       - name: Download kernel bundle
         run: |
-          gh release download "kernel-6.19" \
+          gh release download "kernel-7.2" \
             --pattern "*.deb" \
             --repo "${{ github.repository }}" \
             --clobber

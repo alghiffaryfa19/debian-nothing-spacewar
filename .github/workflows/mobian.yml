@@ -191,7 +191,7 @@ jobs:
 
           echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
 
-          gh release download "kernel-6.19" \
+          gh release download "kernel-7.2" \
             --pattern "*.deb" \
             --repo "${{ github.repository }}" \
             --clobber
