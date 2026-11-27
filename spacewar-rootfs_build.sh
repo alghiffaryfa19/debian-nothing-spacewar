@@ -138,6 +138,7 @@ cp -v "${debs[@]}" "$ROOTFS/tmp/debs/"
 DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" bash -c '
 apt-get update
 apt-get install -y /tmp/debs/*.deb || apt-get -f install -y
+dpkg-divert --package soc-qcom --divert /etc/UPower/UPower.conf.distrib --no-rename --add /etc/UPower/UPower.conf
 rm -rf /tmp/debs
 '
 
