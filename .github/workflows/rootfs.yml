@@ -74,7 +74,7 @@ jobs:
           if [[ ! -f soc-qcom.deb && -d soc-qcom ]]; then
             dpkg-deb --build --root-owner-group soc-qcom
           fi
-          if [[ ! -f alsa-nothing-spacewar.deb && -d alsa-nothing-spacewar ]]; then
+          if [[ -d alsa-nothing-spacewar ]]; then
             dpkg-deb --build --root-owner-group alsa-nothing-spacewar
           fi
           ls -lah *.deb

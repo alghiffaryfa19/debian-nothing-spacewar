@@ -158,9 +158,13 @@ chmod 755 \
     "$ROOTFS/etc/kernel/postinst.d/zz-spacewar-boot"
 
 # Ensure pmOS firmware path is mapped to kernel's updates/ path
-if [[ -d "$ROOTFS/lib/firmware/postmarketos" && ! -e "$ROOTFS/lib/firmware/updates" ]]; then
-    mv "$ROOTFS/lib/firmware/postmarketos" "$ROOTFS/lib/firmware/updates"
-fi
+for fw_root in "$ROOTFS/lib/firmware" "$ROOTFS/usr/lib/firmware"; do
+    if [[ -d "$fw_root/postmarketos" ]]; then
+        mkdir -p "$fw_root/updates"
+        cp -a "$fw_root/postmarketos/." "$fw_root/updates/"
+        rm -rf "$fw_root/postmarketos"
+    fi
+done
 
 # Ensure rmtfs runs in read-only mode (-r) to protect modem EFS partitions
 if [[ -f "$ROOTFS/usr/lib/systemd/system/rmtfs.service" ]]; then
