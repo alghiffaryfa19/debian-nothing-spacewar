@@ -88,23 +88,14 @@ jobs:
           sudo env "PATH=$HOME/.cargo/bin:$PATH" \
             ENABLE_DROIDLOOM="${ENABLE_DROIDLOOM}" \
             ENABLE_GAPPS="${ENABLE_GAPPS}" \
+            SPLIT_ROOTFS="true" \
+            SPLIT_SIZE="1900M" \
             bash ./spacewar-rootfs_build.sh
 
-      - name: "🗜️ Compress sparse rootfs image for release"
+      - name: "📂 Prepare release files"
         run: |
           sudo chown -R "$(id -u):$(id -g)" out
-          cd out
-          target_img="spacewar-rootfs.sparse.img"
-          [[ -f "$target_img" ]] || target_img="spacewar-rootfs.img"
-          zstd -T0 -19 --rm "$target_img" -o "${target_img}.zst"
-          rm -f spacewar-rootfs.img
-          file_size=$(stat -c %s "${target_img}.zst")
-          if (( file_size >= 1992294400 )); then
-            split -b 1900M -d -a 2 "${target_img}.zst" "${target_img}.zst.part"
-            rm -f "${target_img}.zst"
-          fi
-          sha256sum boot.img ${target_img}.zst* packages.txt root.uuid > SHA256SUMS.zst
-          cat SHA256SUMS.zst
+          ls -lh out/
 
       - name: "📤 Upload build artifacts"
         uses: actions/upload-artifact@v4

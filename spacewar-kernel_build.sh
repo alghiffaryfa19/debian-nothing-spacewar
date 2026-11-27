@@ -95,10 +95,20 @@ cd "$REPO_DIR"
 # =========================
 # Package firmware & ALSA UCM
 # =========================
-rm -rf firmware
+rm -rf firmware "$REPO_DIR/firmware-nothing-spacewar/lib" "$REPO_DIR/firmware-nothing-spacewar/usr"
 git clone --depth 1 https://github.com/mainlining/firmware-nothing-spacewar firmware
-cp -a firmware/lib "$REPO_DIR/firmware-nothing-spacewar/" 2>/dev/null || cp -a firmware/usr "$REPO_DIR/firmware-nothing-spacewar/" 2>/dev/null || cp -r firmware/* "$REPO_DIR/firmware-nothing-spacewar/"
-rm -rf "$REPO_DIR/firmware-nothing-spacewar/.git" firmware
+if [[ -d firmware/usr ]]; then
+    cp -a firmware/usr "$REPO_DIR/firmware-nothing-spacewar/"
+fi
+if [[ -d firmware/lib/firmware ]]; then
+    mkdir -p "$REPO_DIR/firmware-nothing-spacewar/lib"
+    cp -a firmware/lib/firmware "$REPO_DIR/firmware-nothing-spacewar/lib/"
+    if [[ -d "$REPO_DIR/firmware-nothing-spacewar/lib/firmware/postmarketos" ]]; then
+        mv "$REPO_DIR/firmware-nothing-spacewar/lib/firmware/postmarketos" \
+           "$REPO_DIR/firmware-nothing-spacewar/lib/firmware/updates"
+    fi
+fi
+rm -rf firmware
 
 dpkg-deb --build --root-owner-group linux-nothing-spacewar
 dpkg-deb --build --root-owner-group firmware-nothing-spacewar

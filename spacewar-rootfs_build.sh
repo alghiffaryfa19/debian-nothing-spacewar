@@ -18,6 +18,8 @@ USERPASS="${USERPASS:-147258}"
 ROOTPASS="${ROOTPASS:-1234}"
 ENABLE_DROIDLOOM="${ENABLE_DROIDLOOM:-true}"
 ENABLE_GAPPS="${ENABLE_GAPPS:-true}"
+SPLIT_ROOTFS="${SPLIT_ROOTFS:-false}"
+SPLIT_SIZE="${SPLIT_SIZE:-1900M}"
 LITEGAPPS_URL="${LITEGAPPS_URL:-https://sourceforge.net/projects/litegapps/files/litegapps/arm64/37/lite/2026-10-12/LiteGapps-arm64-17.0-20261012-official.zip/download}"
 WORK_DIR="${WORK_DIR:-$REPO_DIR/.work}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_DIR/out}"
@@ -108,13 +110,14 @@ DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get install -y \
     iproute2 nftables iptables \
     pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber libspa-0.2-bluetooth \
     libpipewire-0.3-0t64 libwayland-server0 libgbm1 libxkbcommon0 libdrm2 \
-    libvulkan1 mesa-vulkan-drivers mesa-utils-bin \
+    libgl1-mesa-dri libegl-mesa0 libvulkan1 mesa-vulkan-drivers mesa-utils-bin \
+    firmware-qcom-soc firmware-atheros \
     polkitd pkexec \
     adb android-sdk-libsparse-utils mkbootimg \
     tar zstd xz-utils libarchive-tools erofs-utils attr fakeroot \
     alsa-ucm-conf bluez blueman power-profiles-daemon avahi-daemon \
     modemmanager libqmi-utils libmbim-utils qrtr-tools rmtfs tqftpserv \
-    sddm qt6-wayland fcitx5
+    sddm qt6-wayland fcitx5 foot
 
 # Compatibility symlink for Droidloom's /usr/bin/runuser calls on Debian
 chroot "$ROOTFS" bash -c '
@@ -153,6 +156,11 @@ chmod 755 \
     "$ROOTFS/usr/bin/spacewar-audio-reprobe" \
     "$ROOTFS/usr/local/libexec/spacewar-usb-gadget" \
     "$ROOTFS/etc/kernel/postinst.d/zz-spacewar-boot"
+
+# Ensure pmOS firmware path is mapped to kernel's updates/ path
+if [[ -d "$ROOTFS/lib/firmware/postmarketos" && ! -e "$ROOTFS/lib/firmware/updates" ]]; then
+    mv "$ROOTFS/lib/firmware/postmarketos" "$ROOTFS/lib/firmware/updates"
+fi
 
 # Ensure rmtfs runs in read-only mode (-r) to protect modem EFS partitions
 if [[ -f "$ROOTFS/usr/lib/systemd/system/rmtfs.service" ]]; then
@@ -465,6 +473,19 @@ fi
     [[ ! -f spacewar-rootfs.sparse.img ]] || artifacts+=(spacewar-rootfs.sparse.img)
     sha256sum "${artifacts[@]}" > SHA256SUMS
     cat SHA256SUMS
+
+    if [[ "$SPLIT_ROOTFS" == "true" ]]; then
+        target_img="spacewar-rootfs.sparse.img"
+        [[ -f "$target_img" ]] || target_img="spacewar-rootfs.img"
+        echo "🗜️ Compressing and splitting ${target_img} (part size: ${SPLIT_SIZE})..."
+        rm -f "${target_img}.zst" "${target_img}.zst.part"*
+        zstd -T0 -19 --rm "$target_img" -o "${target_img}.zst"
+        rm -f spacewar-rootfs.img
+        split -b "$SPLIT_SIZE" -d -a 2 "${target_img}.zst" "${target_img}.zst.part"
+        rm -f "${target_img}.zst"
+        sha256sum boot.img "${target_img}.zst.part"* packages.txt root.uuid > SHA256SUMS.zst
+        cat SHA256SUMS.zst
+    fi
 )
 
 echo "======================================================================"
