@@ -1,270 +1,170 @@
-name: 🐧Build RootFS
+name: 🐧 Build Debian Forky RootFS & Boot Image (Single-Boot userdata)
 
 on:
   workflow_dispatch:
     inputs:
       kernel_version:
-        description: '内核版本 (对应Release标签，如 7.2)'
+        description: "Kernel release tag to use (e.g. 7.2)"
         required: true
-        default: '7.2'
-      build_type:
-        description: '构建类型选择'
-        options:
-          - all
-          - server-only
-          - desktop-only
-        required: true
-        type: choice
-        default: 'all'
+        default: "7.2"
+      enable_droidloom:
+        description: "Include Droidloom Android runtime"
+        required: false
+        type: boolean
+        default: true
+      enable_gapps:
+        description: "Inject LiteGapps (Android 17 / API 37) into Droidloom"
+        required: false
+        type: boolean
+        default: true
       skip_release:
-        description: '跳过创建GitHub Release'
+        description: "Skip creating GitHub Release"
         required: false
         type: boolean
         default: false
 
 jobs:
-  prepare-release:
-    name: "📝 准备Release"
-    runs-on: ubuntu-24.04-arm
-    permissions:
-      contents: write
-    outputs:
-      release_tag: ${{ steps.generate_tag.outputs.release_tag }}
-      kernel_version: ${{ steps.kernel_version.outputs.kernel_version }}
-    steps:
-    - name: "📦 获取内核版本"
-      id: kernel_version
-      run: |
-        KERNEL_VER=${{ github.event.inputs.kernel_version || '7.2' }}
-        echo "kernel_version=$KERNEL_VER" >> $GITHUB_OUTPUT
-
-    - name: "🏷️ 生成版本标签"
-      id: generate_tag
-      run: |
-        DATE_TAG=$(date -u '+%Y%m%d')
-        KERNEL_REF="${{ steps.kernel_version.outputs.kernel_version }}"
-        SHORT_SHA="${GITHUB_SHA:0:8}"
-        RELEASE_TAG="rootfs-$DATE_TAG-$KERNEL_REF-$SHORT_SHA"
-        echo "release_tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
-
-    - name: "📄 提前创建GitHub Release"
-      if: ${{ !github.event.inputs.skip_release }}
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.generate_tag.outputs.release_tag }}
-        name: "Ubuntu/Debian for Spacewar - ${{ steps.generate_tag.outputs.release_tag }}"
-        body: |
-          🐧 Ubuntu/Debian for Spacewar
-          
-          --- 
-          
-          ### 📋 构建信息
-          | 项目 | 详情 |
-          |------|------|
-          | 内核版本 | ${{ steps.kernel_version.outputs.kernel_version }} |
-          | 构建SHA | [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
-          | 构建类型 | ${{ github.event.inputs.build_type || 'all' }} |
-          | 包含变体 | ${{ 
-              github.event.inputs.build_type == 'server-only' && 'Debian Server, Ubuntu Server' ||
-              github.event.inputs.build_type == 'desktop-only' && 'Debian Desktop, Ubuntu Desktop' ||
-              'Debian Server/Desktop, Ubuntu Server/Desktop'
-            }} |
-          | 总大小 | 构建中... |
-          
-          --- 
-          
-          ### 🔐 默认凭据
-          
-          **服务器版**
-          - 用户名: `root`
-          - 密码: `1234` (首次登录后请立即修改！)
-          
-          **桌面版**
-          - 用户名: `luser`
-          - 密码: `luser`
-          - 自动登录: 已启用
-          - 桌面环境: GNOME + LightDM
-          
-          --- 
-          
-          ### 🛡️ 安全建议
-          1. 首次登录后立即修改默认密码
-          2. 禁用root远程登录（可选）
-          3. 配置防火墙规则
-
-          --- 
-          
-          ### 📦 镜像文件
-          构建中...
-        draft: false
-        prerelease: false
-        files: ""
-        generate_release_notes: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build-rootfs:
-    name: "🏗️ 构建 - ${{ matrix.distro }}"
+    name: "🏗️ Build Debian Forky (Denial + Droidloom + GApps)"
     runs-on: ubuntu-24.04-arm
-    needs: prepare-release
-    env:
-      APT_CACHE_DIR: /opt/apt-cache
-      RELEASE_TAG: ${{ needs.prepare-release.outputs.release_tag }}
-    permissions:
-      contents: read
-      packages: read
-    strategy:
-      matrix:
-        distro: ${{ 
-            (github.event.inputs.build_type == 'server-only')
-            && fromJSON('["debian-server", "ubuntu-server"]')
-            || (github.event.inputs.build_type == 'desktop-only')
-            && fromJSON('["debian-desktop", "ubuntu-desktop"]')
-            || fromJSON('["debian-server", "debian-desktop", "ubuntu-server", "ubuntu-desktop"]')
-            }}
-      fail-fast: false
-
-    steps:
-    - name: "📥 检出代码"
-      uses: actions/checkout@v4
-
-    - name: "🔧 安装构建工具"
-      run: |
-        echo "安装必需的系统工具..."
-        sudo apt-get update
-        sudo apt-get install -y \
-          debootstrap \
-          p7zip-full \
-          curl
-        echo "✅ 工具安装完成"
-
-    - name: "📥 Download kernel bundle"
-      run: |
-        KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
-
-        echo "⬇️ Download bundle kernel-bundle-$KERNEL_VER"
-
-        gh release download "kernel-$KERNEL_VER" \
-          --pattern "*.deb" \
-          --repo "${{ github.repository }}" \
-          --clobber
-
-        echo "📂 Downloaded files:"
-        ls -lah *.deb
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: "🏗️ 执行RootFS构建"
-      id: build_rootfs
-      run: |
-        DISTRO="${{ matrix.distro }}"
-        KERNEL_VER="${{ needs.prepare-release.outputs.kernel_version }}"
-        
-        echo "========================================"
-        echo "开始构建 RootFS"
-        echo "----------------------------------------"
-        echo "发行版: $DISTRO"
-        echo "内核: $KERNEL_VER"
-        echo "Runner: $(uname -m)"
-        echo "时间: $(date)"
-        echo "========================================"
-        
-        # 赋予执行权限并执行构建脚本
-        chmod +x spacewar-rootfs_build.sh
-        sudo bash ./spacewar-rootfs_build.sh "$DISTRO" "$KERNEL_VER"
-        
-        # 检查构建结果 - 查找动态生成的压缩包
-        # 查找所有.7z文件
-        SEVEN_Z_FILES=$(find . -name "*.7z" | grep -v "spacewar-rootfs_build.sh" | head -10)
-        if [[ -n "$SEVEN_Z_FILES" ]]; then
-          for FILE in $SEVEN_Z_FILES; do
-            FILE_SIZE=$(du -h "$FILE" | cut -f1)
-            echo "✅ 找到构建产物: $FILE ($FILE_SIZE)"
-            echo "final_filename=$(basename "$FILE")" >> $GITHUB_OUTPUT
-            echo "file_path=$FILE" >> $GITHUB_OUTPUT
-            # 检查文件大小
-            FILE_SIZE_KB=$(du -k "$FILE" | cut -f1)
-            FILE_SIZE_GB=$(($FILE_SIZE_KB / 1024 / 1024))
-            echo "file_size_gb=$FILE_SIZE_GB" >> $GITHUB_OUTPUT
-            break
-          done
-        else
-          echo "❌ 错误：未生成任何.7z文件！"
-          ls -la *.7z 2>/dev/null || echo "未找到任何.7z文件"
-          exit 1
-        fi
-        
-        # 检查Boot镜像（所有Server变体）
-        if [[ "$DISTRO" == "*-server" && -f "xiaomi-k20pro-boot.img" ]]; then
-          echo "✅ 找到Boot镜像: xiaomi-k20pro-boot.img"
-          echo "boot_img_exists=true" >> $GITHUB_OUTPUT
-        fi
-      timeout-minutes: 90
-
-    - name: "📤 上传大文件到Artifact"
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ steps.build_rootfs.outputs.final_filename }}
-        path: ${{ steps.build_rootfs.outputs.file_path }}
-        retention-days: 14
-        if-no-files-found: error
-        compression-level: 0
-
-    - name: "🚀 直接上传小文件到Release"
-      if: ${{ !github.event.inputs.skip_release && steps.build_rootfs.outputs.file_size_gb < 2 }}
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ env.RELEASE_TAG }}
-        files: ${{ steps.build_rootfs.outputs.file_path }}
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: "🚀 上传Boot镜像到Release"
-      if: ${{ !github.event.inputs.skip_release && steps.build_rootfs.outputs.boot_img_exists == 'true' }}
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ env.RELEASE_TAG }}
-        files: boot*.img
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  update-release: 
-    name: "📝 更新Release信息"
-    runs-on: ubuntu-24.04-arm
-    needs: [prepare-release, build-rootfs]
+    timeout-minutes: 180
     permissions:
       contents: write
-    if: ${{ !github.event.inputs.skip_release }}
+
     steps:
-    - name: "📝 更新Release信息"
-      run: |
-        # 生成文件列表
-        echo "### 📦 包含的镜像文件" > filelist.md
-        echo "" >> filelist.md
-        
-        # 查找所有上传到Release的小文件（通过GitHub API）
-        echo "🔍 获取Release资产列表..."
-        gh release view ${{ needs.prepare-release.outputs.release_tag }} --json assets --jq '.assets[].name' > release_assets.txt 2>/dev/null || echo "" > release_assets.txt
-        
-        # 添加小文件到列表
-        while read -r asset; do
-          if [[ -n "$asset" ]]; then
-            echo "- **$asset**" >> filelist.md
+      - name: "🧹 Maximize runner disk space"
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "🔧 Install host build dependencies & Rust 1.93.0"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            debootstrap curl wget gnupg ca-certificates \
+            e2fsprogs util-linux android-sdk-libsparse-utils mkbootimg \
+            libarchive-tools zstd xz-utils erofs-utils attr fakeroot \
+            aapt apksigner default-jre-headless build-essential pkg-config
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.93.0 --profile minimal
+          else
+            rustup toolchain install 1.93.0 --profile minimal
+            rustup default 1.93.0
           fi
-        done < release_assets.txt
-        
-        # 读取当前Release描述
-        CURRENT_BODY=$(gh release view ${{ needs.prepare-release.outputs.release_tag }} --json body --jq '.body')
-        
-        # 更新Release描述，替换镜像文件部分
-        NEW_BODY=$(echo "$CURRENT_BODY" | sed '/### 📦 镜像文件/,/---/c\### 📦 镜像文件\n'$(cat filelist.md | sed 's/\//\\\//g' | sed 's/&/\\&/g' | tr '\n' '\n'))
-        
-        # 更新Release
-        echo "📝 更新Release信息..."
-        gh release edit ${{ needs.prepare-release.outputs.release_tag }} --body "$NEW_BODY"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: "📥 Download device & kernel .deb packages from Releases"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KERNEL_VER: ${{ github.event.inputs.kernel_version || '7.2' }}
+        run: |
+          for tag in "msm-modem" "bootmac" "q6voiced" "pd-mapper" "soc-qcom" "kernel-${KERNEL_VER}"; do
+            echo "⬇️ Downloading .deb packages from release: ${tag}"
+            gh release download "${tag}" --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
+          done
+          # Build local pd-mapper / soc-qcom / alsa-nothing-spacewar fallback if not in release
+          if [[ ! -f pd-mapper.deb && -d pd-mapper ]]; then
+            chmod 755 pd-mapper/DEBIAN/postinst pd-mapper/DEBIAN/postrm
+            dpkg-deb --build --root-owner-group pd-mapper
+          fi
+          if [[ ! -f soc-qcom.deb && -d soc-qcom ]]; then
+            dpkg-deb --build --root-owner-group soc-qcom
+          fi
+          if [[ ! -f alsa-nothing-spacewar.deb && -d alsa-nothing-spacewar ]]; then
+            dpkg-deb --build --root-owner-group alsa-nothing-spacewar
+          fi
+          ls -lah *.deb
+
+      - name: "🏗️ Run spacewar-rootfs_build.sh"
+        env:
+          ENABLE_DROIDLOOM: ${{ github.event.inputs.enable_droidloom }}
+          ENABLE_GAPPS: ${{ github.event.inputs.enable_gapps }}
+        run: |
+          chmod +x spacewar-rootfs_build.sh
+          sudo env "PATH=$HOME/.cargo/bin:$PATH" \
+            ENABLE_DROIDLOOM="${ENABLE_DROIDLOOM}" \
+            ENABLE_GAPPS="${ENABLE_GAPPS}" \
+            bash ./spacewar-rootfs_build.sh
+
+      - name: "🗜️ Compress sparse rootfs image for release"
+        run: |
+          sudo chown -R "$(id -u):$(id -g)" out
+          cd out
+          target_img="spacewar-rootfs.sparse.img"
+          [[ -f "$target_img" ]] || target_img="spacewar-rootfs.img"
+          zstd -T0 -19 --rm "$target_img" -o "${target_img}.zst"
+          rm -f spacewar-rootfs.img
+          file_size=$(stat -c %s "${target_img}.zst")
+          if (( file_size >= 1992294400 )); then
+            split -b 1900M -d -a 2 "${target_img}.zst" "${target_img}.zst.part"
+            rm -f "${target_img}.zst"
+          fi
+          sha256sum boot.img ${target_img}.zst* packages.txt root.uuid > SHA256SUMS.zst
+          cat SHA256SUMS.zst
+
+      - name: "📤 Upload build artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-forky-spacewar-userdata
+          path: |
+            out/boot.img
+            out/spacewar-rootfs*.zst*
+            out/packages.txt
+            out/root.uuid
+            out/SHA256SUMS
+            out/SHA256SUMS.zst
+          retention-days: 14
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: "🚀 Publish GitHub Release"
+        if: ${{ !github.event.inputs.skip_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rootfs-${{ github.run_number }}-${{ github.event.inputs.kernel_version || '7.2' }}
+          name: "Debian Forky (Denial + Droidloom + GApps) for Nothing Phone (1) - #${{ github.run_number }}"
+          body: |
+            🐧 **Debian Forky (`arm64`) Single-Boot (`userdata`) for Nothing Phone (1) (`spacewar`)**
+
+            ### 📋 Build Configuration
+            - **Distribution**: Debian `forky` (`arm64`)
+            - **Boot Mode**: Single-boot on `userdata` (`x-systemd.growfs` auto-expand on first boot)
+            - **Boot Image**: Built with `spacewar-mkbootimg` (`Image.gz-dtb` + header v2, referenced from `arch-nothing-spacewar`)
+            - **Desktop Environment**: [Denial WM](https://denialwm.org) (`DENIAL_SHELL_PROFILE=mobile`, SDDM autologin)
+            - **Android Runtime**: [Droidloom](https://github.com/denialwm/droidloom) (`aarch64`) + **LiteGapps Android 17 / API 37** pre-injected at `/usr/lib/droidloom/addons/gapps`
+            - **Default Credentials**:
+              - User: `user` / `147258` (autologin enabled)
+              - Root: `root` / `1234`
+
+            ### ⚡ Flashing Instructions (Single-Boot `userdata`)
+            1. Decompress the sparse rootfs image:
+               ```bash
+               # If split into parts:
+               cat spacewar-rootfs.sparse.img.zst.part* | unzstd -o spacewar-rootfs.sparse.img
+               # Or if single file:
+               unzstd spacewar-rootfs.sparse.img.zst
+               ```
+            2. Verify checksums:
+               ```bash
+               sha256sum -c SHA256SUMS
+               ```
+            3. Flash via Fastboot:
+               ```bash
+               fastboot flash boot_a boot.img
+               fastboot flash boot_b boot.img
+               fastboot flash userdata spacewar-rootfs.sparse.img
+               fastboot reboot
+               ```
+          files: |
+            out/boot.img
+            out/spacewar-rootfs*.zst*
+            out/packages.txt
+            out/root.uuid
+            out/SHA256SUMS
+            out/SHA256SUMS.zst
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

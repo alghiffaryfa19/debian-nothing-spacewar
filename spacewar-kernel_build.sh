@@ -1,14 +1,17 @@
-# 仅在未设置环境变量时配置ccache
-if [ -z "$CCACHE_DIR" ]; then
-    export CCACHE_DIR="/home/runner/.ccache"
+#!/bin/bash
+set -euo pipefail
+
+REPO_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+KERNEL_COMMIT="${KERNEL_COMMIT:-b90de19446e8bdaf222380b5a1d230c006d2912a}"
+ARCH="arm64"
+
+if [[ -z "${CCACHE_DIR:-}" ]]; then
+    export CCACHE_DIR="${HOME}/.ccache"
     export CCACHE_MAXSIZE="10G"
     export CCACHE_SLOPPINESS="file_macro,locale,time_macros"
 fi
-
-# 确保ccache目录存在
 mkdir -p "$CCACHE_DIR"
 
-# 确保ccache优先使用clang
 export CC="ccache clang"
 export CXX="ccache clang++"
 export AR="llvm-ar"
@@ -18,81 +21,86 @@ export OBJDUMP="llvm-objdump"
 export READELF="llvm-readelf"
 export STRIP="llvm-strip"
 
-git clone https://github.com/sc7280-mainline/linux.git --depth 1 linux
+cd "$REPO_DIR"
+rm -rf linux
+mkdir -p linux
+echo "⬇️ Fetching sc7280-mainline/linux (${KERNEL_COMMIT})..."
+curl -fL --retry 3 "https://github.com/sc7280-mainline/linux/archive/${KERNEL_COMMIT}.tar.gz" \
+    | tar -xz --strip-components=1 -C linux
+
 cd linux
 
-wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
-make -j$(nproc) ARCH=arm64 LLVM=1
-make -j$(nproc) ARCH=arm64 LLVM=1 dtbs
+echo "🩹 Applying Spacewar kernel patches (from arch-nothing-spacewar)..."
+if [[ -d "$REPO_DIR/kernel/patches" ]]; then
+    for patch_file in "$REPO_DIR"/kernel/patches/*.patch; do
+        [[ -f "$patch_file" ]] || continue
+        echo "  -> $(basename "$patch_file")"
+        patch -Np1 -i "$patch_file"
+    done
+fi
 
-_kernel_version="$(make kernelrelease -s)"
+if [[ -f "$REPO_DIR/kernel/config-postmarketos-qcom-sc7280.aarch64" ]]; then
+    cp "$REPO_DIR/kernel/config-postmarketos-qcom-sc7280.aarch64" .config
+else
+    wget https://gitlab.postmarketos.org/postmarketOS/pmaports/-/raw/main/device/community/linux-postmarketos-qcom-sc7280/config-postmarketos-qcom-sc7280.aarch64 -O .config
+fi
 
+scripts/config --disable LOCALVERSION_AUTO --set-str LOCALVERSION "-sc7280"
+make -j"$(nproc)" ARCH="$ARCH" LLVM=1 olddefconfig
+make -j"$(nproc)" ARCH="$ARCH" LLVM=1 Image Image.gz vmlinuz.efi modules dtbs
 
-sed -i "s/Version:.*/Version: ${_kernel_version}/" ../linux-nothing-spacewar/DEBIAN/control
+_kernel_version="$(make ARCH="$ARCH" LLVM=1 kernelrelease -s)"
+echo "✅ Built kernel release: ${_kernel_version}"
 
-#rm $1/linux-nothing-spacewar/usr/dummy
+PKGDIR="$REPO_DIR/linux-nothing-spacewar"
+rm -rf "$PKGDIR/boot" "$PKGDIR/lib" "$PKGDIR/usr"
+mkdir -p "$PKGDIR/boot"
 
-PKGDIR=../linux-nothing-spacewar
-ARCH=arm64
+sed -i "s/^Version:.*/Version: ${_kernel_version}/" "$PKGDIR/DEBIAN/control"
 
 # =========================
 # Install kernel images
 # =========================
-mkdir -p $PKGDIR/boot
+install -Dm644 "arch/$ARCH/boot/Image"       "$PKGDIR/boot/Image"
+install -Dm644 "arch/$ARCH/boot/Image.gz"    "$PKGDIR/boot/Image.gz"
+install -Dm644 "arch/$ARCH/boot/vmlinuz"     "$PKGDIR/boot/vmlinuz"
+install -Dm644 "arch/$ARCH/boot/vmlinuz.efi" "$PKGDIR/boot/linux.efi"
+install -Dm644 .config                       "$PKGDIR/boot/config-${_kernel_version}"
+install -Dm644 System.map                    "$PKGDIR/boot/System.map-${_kernel_version}"
 
-install -Dm644 arch/$ARCH/boot/vmlinuz.efi \
-    $PKGDIR/boot/linux.efi
-
-install -Dm644 arch/$ARCH/boot/vmlinuz \
-    $PKGDIR/boot/vmlinuz
-
-install -Dm644 .config \
-    $PKGDIR/boot/config-${_kernel_version}
-
-install -Dm644 System.map \
-    $PKGDIR/boot/System.map-${_kernel_version}
-
-OUTPUT_DIR="$GITHUB_WORKSPACE"
-chmod +x ../mkbootimg
-../mkbootimg --kernel arch/arm64/boot/vmlinuz --dtb arch/arm64/boot/dts/qcom/sm7325-nothing-spacewar.dtb --ramdisk ../initrd.img --cmdline "console=ttyMSM0,115200 earlycon loglevel=7 root=/dev/disk/by-partlabel/linux rootwait rw" --base 0x00000000 --pagesize 4096 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 --header_version 2 -o "$OUTPUT_DIR/boot.img"
-echo "=== CHECK FILES ==="
-pwd
-ls -lah
-ls -lah "$OUTPUT_DIR"
 # =========================
 # Install modules + dtbs
 # =========================
-make -j$(nproc) \
-    ARCH=$ARCH \
+make -j"$(nproc)" \
+    ARCH="$ARCH" \
     LLVM=1 \
-    INSTALL_PATH=$PKGDIR/boot \
-    INSTALL_MOD_PATH=$PKGDIR \
+    INSTALL_PATH="$PKGDIR/boot" \
+    INSTALL_MOD_PATH="$PKGDIR" \
     INSTALL_MOD_STRIP=1 \
-    INSTALL_DTBS_PATH=$PKGDIR/boot/dtbs \
+    INSTALL_DTBS_PATH="$PKGDIR/boot/dtbs" \
     modules_install dtbs_install
 
-depmod -a -b $PKGDIR $_kernel_version
+depmod -a -b "$PKGDIR" "$_kernel_version"
 
 # =========================
-# Cleanup
+# Cleanup & metadata
 # =========================
-rm -rf $PKGDIR/lib/modules/*/{build,source} 2>/dev/null || true
+rm -rf "$PKGDIR"/lib/modules/*/{build,source} 2>/dev/null || true
+
+mkdir -p "$PKGDIR/usr/share/kernel/spacewar"
+printf '%s\n' "$_kernel_version" > "$PKGDIR/usr/share/kernel/spacewar/kernel.release"
+
+cd "$REPO_DIR"
 
 # =========================
-# Save kernel version info
+# Package firmware & ALSA UCM
 # =========================
-mkdir -p $PKGDIR/usr/share/kernel/spacewar
-cp include/config/kernel.release \
-   $PKGDIR/usr/share/kernel/spacewar/kernel.release
-
-cd ..
-
-git clone https://github.com/mainlining/firmware-nothing-spacewar firmware
-cd firmware
-cp -r . ../firmware-nothing-spacewar
-
-cd ..
+rm -rf firmware
+git clone --depth 1 https://github.com/mainlining/firmware-nothing-spacewar firmware
+cp -a firmware/lib "$REPO_DIR/firmware-nothing-spacewar/" 2>/dev/null || cp -a firmware/usr "$REPO_DIR/firmware-nothing-spacewar/" 2>/dev/null || cp -r firmware/* "$REPO_DIR/firmware-nothing-spacewar/"
+rm -rf "$REPO_DIR/firmware-nothing-spacewar/.git" firmware
 
 dpkg-deb --build --root-owner-group linux-nothing-spacewar
 dpkg-deb --build --root-owner-group firmware-nothing-spacewar
 dpkg-deb --build --root-owner-group alsa-nothing-spacewar
+echo "✅ Built packages: linux-nothing-spacewar.deb, firmware-nothing-spacewar.deb, alsa-nothing-spacewar.deb"

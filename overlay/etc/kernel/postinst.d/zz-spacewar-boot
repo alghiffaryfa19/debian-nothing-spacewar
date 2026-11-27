@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+if [ -x /usr/bin/spacewar-mkbootimg ] && [ -s /etc/kernel/cmdline ]; then
+  /usr/bin/spacewar-mkbootimg --rebuild-initramfs
+fi
