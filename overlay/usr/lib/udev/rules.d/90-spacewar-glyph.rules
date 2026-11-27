@@ -1,0 +1,2 @@
+# Allow desktop user (sudo group) to control Glyph LEDs
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="glyph:*", RUN+="/usr/bin/chgrp sudo /sys%p/brightness", RUN+="/usr/bin/chmod 0664 /sys%p/brightness"

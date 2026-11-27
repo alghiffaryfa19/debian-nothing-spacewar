@@ -1,0 +1,11 @@
+[Unit]
+Description=Configure Spacewar s2idle sleep and wakeup sources
+After=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/spacewar-s2idle-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

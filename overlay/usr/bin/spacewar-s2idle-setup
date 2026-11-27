@@ -1,0 +1,13 @@
+#!/bin/sh
+# Force s2idle (deep sleep resets the SoC) and disable noisy/fatal wakeup sources.
+echo s2idle > /sys/power/mem_sleep 2>/dev/null || true
+
+bt_uart="/sys/devices/platform/soc@0/9c0000.geniqup/99c000.serial/power/wakeup"
+if [ -w "$bt_uart" ]; then
+    echo disabled > "$bt_uart" || true
+fi
+
+usb_wake="/sys/devices/platform/soc@0/a600000.usb/power/wakeup"
+if [ -w "$usb_wake" ]; then
+    echo disabled > "$usb_wake" || true
+fi

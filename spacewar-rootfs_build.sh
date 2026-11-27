@@ -111,6 +111,7 @@ DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get install -y \
     pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber libspa-0.2-bluetooth \
     libpipewire-0.3-0t64 libwayland-server0 libgbm1 libxkbcommon0 libdrm2 \
     libgl1-mesa-dri libegl-mesa0 libvulkan1 mesa-vulkan-drivers mesa-utils-bin \
+    libcamera-ipa libspa-0.2-libcamera gstreamer1.0-libcamera libcamera-tools \
     firmware-qcom-soc firmware-atheros \
     polkitd pkexec \
     adb android-sdk-libsparse-utils mkbootimg \
@@ -154,6 +155,7 @@ chmod 755 \
     "$ROOTFS/usr/bin/spacewar-mkbootimg" \
     "$ROOTFS/usr/bin/spacewar-usb-reprobe" \
     "$ROOTFS/usr/bin/spacewar-audio-reprobe" \
+    "$ROOTFS/usr/bin/spacewar-s2idle-setup" \
     "$ROOTFS/usr/local/libexec/spacewar-usb-gadget" \
     "$ROOTFS/etc/kernel/postinst.d/zz-spacewar-boot"
 
@@ -395,7 +397,7 @@ done
 
 systemctl enable ssh NetworkManager systemd-networkd systemd-resolved sddm
 systemctl enable bluetooth power-profiles-daemon avahi-daemon
-systemctl enable spacewar-usb-reprobe.service spacewar-usb-gadget.service spacewar-audio-reprobe.service
+systemctl enable spacewar-usb-reprobe.service spacewar-usb-gadget.service spacewar-audio-reprobe.service spacewar-s2idle.service
 systemctl enable rmtfs tqftpserv ModemManager pd-mapper || true
 if systemctl list-unit-files | grep -q '^msm-modem-uim-selection'; then
     systemctl enable msm-modem-uim-selection.service
