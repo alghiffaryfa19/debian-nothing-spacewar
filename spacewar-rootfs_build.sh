@@ -117,7 +117,7 @@ DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get install -y \
     tar zstd xz-utils libarchive-tools erofs-utils attr fakeroot \
     alsa-ucm-conf bluez blueman power-profiles-daemon avahi-daemon \
     modemmanager libqmi-utils libmbim-utils qrtr-tools rmtfs tqftpserv \
-    sddm qt6-wayland fcitx5 foot
+    sddm qt6-wayland fcitx5 foot firefox-esr git
 
 # Compatibility symlink for Droidloom's /usr/bin/runuser calls on Debian
 chroot "$ROOTFS" bash -c '
