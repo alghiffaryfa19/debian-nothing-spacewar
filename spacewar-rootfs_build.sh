@@ -221,134 +221,55 @@ QT_IM_MODULE=fcitx
 EOF
 
 # ==============================================================================
-# 5. Install Droidloom (aarch64 prebuilt binaries) & Inject LiteGapps
+# 5. Install Droidloom (.deb packages) & Inject LiteGapps (.deb)
 # ==============================================================================
 if [[ "$ENABLE_DROIDLOOM" == "true" ]]; then
-    echo "🤖 Installing Droidloom aarch64 packages into Debian Forky rootfs..."
-    DL_VER_JSON=$(curl -fsSL https://raw.githubusercontent.com/denialwm/droidloom/refs/heads/main/packaging/arch/version.json)
-    DL_VERSION=$(awk -F'"' '/"version"/ {print $4}' <<<"$DL_VER_JSON")
-    DL_RELEASE=$(awk -F'[:, ]+' '/"release"/ {print $3}' <<<"$DL_VER_JSON")
-    DL_FULL_VER="${DL_VERSION}-${DL_RELEASE}"
+    echo "🤖 Installing Droidloom Debian packages (droidloom-debian)..."
+    DEB_DIR="${DROIDLOOM_DEB_DIR:-$REPO_DIR/debs}"
+    chmod +x "$REPO_DIR/droidloom-build_debs.sh"
 
-    DL_BASE_JSON=$(curl -fsSL https://denialwm.github.io/droidloom/aarch64/base.json)
-    DL_BASE_VER=$(awk -F'"' '/"version"/ {print $4}' <<<"$DL_BASE_JSON")
+    shopt -s nullglob
+    dl_base_debs=("$DEB_DIR"/droidloom-base_*.deb)
+    dl_image_debs=("$DEB_DIR"/droidloom-image_*.deb)
+    dl_runtime_debs=("$DEB_DIR"/droidloom-runtime_*.deb)
+    if (( ${#dl_base_debs[@]} == 0 || ${#dl_image_debs[@]} == 0 || ${#dl_runtime_debs[@]} == 0 )); then
+        DROIDLOOM_CACHE_DIR="$WORK_DIR/cache/droidloom" DROIDLOOM_DEB_DIR="$DEB_DIR" \
+            "$REPO_DIR/droidloom-build_debs.sh" --no-gapps
+    fi
 
-    [[ -n "$DL_FULL_VER" && -n "$DL_BASE_VER" ]] || fail "Could not resolve Droidloom version metadata"
-    echo "   Droidloom Runtime/Image : ${DL_FULL_VER}"
-    echo "   Droidloom Base          : ${DL_BASE_VER}"
-
-    DL_RELEASE_URL="https://github.com/denialwm/droidloom/releases/download/packages"
-    for pkg_archive in \
-        "droidloom-base-${DL_BASE_VER}-aarch64.pkg.tar.zst" \
-        "droidloom-image-${DL_FULL_VER}-aarch64.pkg.tar.zst" \
-        "droidloom-runtime-${DL_FULL_VER}-aarch64.pkg.tar.zst"; do
-        cache_path="$WORK_DIR/cache/$pkg_archive"
-        if [[ ! -s "$cache_path" ]]; then
-            echo "⬇️ Downloading $pkg_archive..."
-            curl -fL --retry 3 -o "$cache_path.partial" "$DL_RELEASE_URL/$pkg_archive"
-            mv -f "$cache_path.partial" "$cache_path"
-        fi
-        echo "📦 Extracting $pkg_archive into rootfs..."
-        bsdtar --acls --xattrs --numeric-owner -xpf "$cache_path" -C "$ROOTFS" \
-            --exclude='.PKGINFO' --exclude='.BUILDINFO' --exclude='.MTREE' --exclude='.INSTALL'
-    done
-
-    # Remove Arch libalpm hooks (not needed on Debian)
-    rm -rf "$ROOTFS/usr/share/libalpm"
+    mkdir -p "$ROOTFS/tmp/droidloom-debs"
+    cp -v "$DEB_DIR"/droidloom-base_*.deb "$DEB_DIR"/droidloom-image_*.deb "$DEB_DIR"/droidloom-runtime_*.deb "$ROOTFS/tmp/droidloom-debs/"
+    DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" bash -c '
+    apt-get update
+    apt-get install -y /tmp/droidloom-debs/*.deb || apt-get -f install -y
+    rm -rf /tmp/droidloom-debs
+    '
 
     if [[ "$ENABLE_GAPPS" == "true" ]]; then
-        echo "🧩 Building and injecting LiteGapps add-on via droidloom-gapps..."
-        if [[ -n "${SUDO_USER:-}" && -d "/home/${SUDO_USER}/.cargo/bin" ]]; then
-            export PATH="/home/${SUDO_USER}/.cargo/bin:$PATH"
-        fi
-        if [[ -d "/root/.cargo/bin" ]]; then
-            export PATH="/root/.cargo/bin:$PATH"
-        fi
-        command -v cargo >/dev/null 2>&1 || fail "Missing host tool: cargo (install rustup or cargo)"
-
-        GAPPS_ZIP="$WORK_DIR/cache/LiteGapps-arm64-17.0-20261012-official.zip"
-        if [[ ! -s "$GAPPS_ZIP" ]]; then
-            echo "⬇️ Downloading LiteGapps archive..."
-            curl -fL --retry 3 -o "$GAPPS_ZIP.partial" "$LITEGAPPS_URL"
-            mv -f "$GAPPS_ZIP.partial" "$GAPPS_ZIP"
-        fi
-        GAPPS_SHA256=$(sha256sum "$GAPPS_ZIP" | awk '{print $1}')
-        echo "   LiteGapps SHA-256: $GAPPS_SHA256"
-
-        DL_SRC_TAR="$WORK_DIR/cache/droidloom-source-${DL_FULL_VER}.tar.gz"
-        if [[ ! -s "$DL_SRC_TAR" ]]; then
-            echo "⬇️ Downloading droidloom-source-${DL_FULL_VER}.tar.gz..."
-            curl -fL --retry 3 -o "$DL_SRC_TAR.partial" "$DL_RELEASE_URL/droidloom-source-${DL_FULL_VER}.tar.gz"
-            mv -f "$DL_SRC_TAR.partial" "$DL_SRC_TAR"
+        echo "🧩 Building and installing droidloom-gapps .deb..."
+        dl_gapps_debs=("$DEB_DIR"/droidloom-gapps_*.deb)
+        if (( ${#dl_gapps_debs[@]} == 0 )); then
+            if command -v aapt2 >/dev/null 2>&1 && command -v apksigner >/dev/null 2>&1 \
+                && command -v mkfs.erofs >/dev/null 2>&1 && mkfs.erofs --help 2>&1 | grep -q -- '--mkfs-time'; then
+                DROIDLOOM_CACHE_DIR="$WORK_DIR/cache/droidloom" DROIDLOOM_DEB_DIR="$DEB_DIR" \
+                    LITEGAPPS_URL="$LITEGAPPS_URL" \
+                    "$REPO_DIR/droidloom-build_debs.sh" --gapps-only
+            elif [[ "$HOST_ARCH" == "aarch64" ]]; then
+                DROIDLOOM_CACHE_DIR="$WORK_DIR/cache/droidloom" DROIDLOOM_DEB_DIR="$DEB_DIR" \
+                    LITEGAPPS_URL="$LITEGAPPS_URL" \
+                    "$REPO_DIR/droidloom-build_debs.sh" --gapps-only --chroot "$ROOTFS"
+            else
+                fail "Host is missing aapt2, apksigner, or erofs-utils >= 1.8 (--mkfs-time)"
+            fi
         fi
 
-        rm -rf "$WORK_DIR/droidloom-src" "$WORK_DIR/gapps-arm64"
-        mkdir -p "$WORK_DIR/droidloom-src"
-        tar -xzf "$DL_SRC_TAR" -C "$WORK_DIR/droidloom-src"
-        DL_SRC_DIR="$WORK_DIR/droidloom-src/droidloom"
-
-        echo "🔨 Compiling droidloom-gapps tool..."
-        (
-            cd "$DL_SRC_DIR"
-            cargo build --locked -j 1 -p droidloom-gapps
-        )
-        GAPPS_BIN="$DL_SRC_DIR/target/debug/droidloom-gapps"
-        [[ -x "$GAPPS_BIN" ]] || fail "Failed to build droidloom-gapps binary"
-
-        # Prefer running on host if erofs-utils >= 1.8 (--mkfs-time) and aapt2/apksigner exist;
-        # otherwise run inside the Debian Forky chroot which has erofs-utils 1.8+.
-        if command -v aapt2 >/dev/null 2>&1 && command -v apksigner >/dev/null 2>&1 \
-            && command -v mkfs.erofs >/dev/null 2>&1 && mkfs.erofs --help 2>&1 | grep -q -- '--mkfs-time'; then
-            echo "🔍 Running droidloom-gapps on host..."
-            "$GAPPS_BIN" inspect "$GAPPS_ZIP"
-            "$GAPPS_BIN" build \
-                --archive "$GAPPS_ZIP" \
-                --sha256 "$GAPPS_SHA256" \
-                --base "$ROOTFS/usr/lib/droidloom/images" \
-                --output "$WORK_DIR/gapps-arm64" \
-                --aapt2 "$(command -v aapt2)" \
-                --apksigner "$(command -v apksigner)"
-            "$GAPPS_BIN" verify \
-                --addon "$WORK_DIR/gapps-arm64" \
-                --base "$ROOTFS/usr/lib/droidloom/images"
-        elif [[ "$HOST_ARCH" == "aarch64" ]]; then
-            echo "🔍 Running droidloom-gapps inside Debian Forky chroot (erofs-utils 1.8+)..."
-            DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get install -y aapt apksigner
-            install -Dm755 "$GAPPS_BIN" "$ROOTFS/tmp/droidloom-gapps"
-            cp -f "$GAPPS_ZIP" "$ROOTFS/tmp/LiteGapps.zip"
-            rm -rf "$ROOTFS/tmp/gapps-arm64"
-            chroot "$ROOTFS" /tmp/droidloom-gapps inspect /tmp/LiteGapps.zip
-            chroot "$ROOTFS" /tmp/droidloom-gapps build \
-                --archive /tmp/LiteGapps.zip \
-                --sha256 "$GAPPS_SHA256" \
-                --base /usr/lib/droidloom/images \
-                --output /tmp/gapps-arm64 \
-                --aapt2 /usr/bin/aapt2 \
-                --apksigner /usr/bin/apksigner
-            chroot "$ROOTFS" /tmp/droidloom-gapps verify \
-                --addon /tmp/gapps-arm64 \
-                --base /usr/lib/droidloom/images
-            mv "$ROOTFS/tmp/gapps-arm64" "$WORK_DIR/gapps-arm64"
-            rm -f "$ROOTFS/tmp/droidloom-gapps" "$ROOTFS/tmp/LiteGapps.zip"
-            DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get purge -y --auto-remove aapt apksigner
-        else
-            fail "Host is missing aapt2, apksigner, or erofs-utils >= 1.8 (--mkfs-time)"
-        fi
-
-        # Install verified GApps add-on directly to /usr/lib/droidloom/addons/gapps
-        # Note: droidloom-package-helper automatically selects /usr/lib/droidloom/addons/gapps on first setup!
-        GAPPS_DEST="$ROOTFS/usr/lib/droidloom/addons/gapps"
-        rm -rf "$GAPPS_DEST"
-        install -d -m 0755 -o 0 -g 0 "$GAPPS_DEST/images" "$ROOTFS/usr/share/licenses/droidloom-gapps"
-        for item in manifest.json import-report.json LICENSE.LiteGapps NOTICE images/product.img images/system_ext.img; do
-            cp --reflink=auto --sparse=always -- "$WORK_DIR/gapps-arm64/$item" "$GAPPS_DEST/$item"
-        done
-        cp -- "$WORK_DIR/gapps-arm64/LICENSE.LiteGapps" "$ROOTFS/usr/share/licenses/droidloom-gapps/LICENSE.LiteGapps"
-        cp -- "$WORK_DIR/gapps-arm64/NOTICE" "$ROOTFS/usr/share/licenses/droidloom-gapps/NOTICE"
-        chown -R 0:0 "$ROOTFS/usr/lib/droidloom" "$ROOTFS/usr/share/licenses/droidloom-gapps"
-        chmod -R u=rwX,go=rX "$GAPPS_DEST"
-        rm -rf "$WORK_DIR/gapps-arm64" "$WORK_DIR/droidloom-src"
-        echo "✅ LiteGapps successfully verified and injected into /usr/lib/droidloom/addons/gapps"
+        mkdir -p "$ROOTFS/tmp/droidloom-gapps"
+        cp -v "$DEB_DIR"/droidloom-gapps_*.deb "$ROOTFS/tmp/droidloom-gapps/"
+        DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" bash -c '
+        apt-get install -y /tmp/droidloom-gapps/*.deb || apt-get -f install -y
+        rm -rf /tmp/droidloom-gapps
+        '
+        echo "✅ droidloom-gapps .deb installed into /usr/lib/droidloom/addons/gapps"
     fi
 fi
 

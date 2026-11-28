@@ -79,6 +79,13 @@ jobs:
           fi
           ls -lah *.deb
 
+      - name: "📦 Build Droidloom .deb packages (droidloom-debian)"
+        if: ${{ github.event.inputs.enable_droidloom != 'false' }}
+        run: |
+          chmod +x droidloom-build_debs.sh
+          ./droidloom-build_debs.sh --no-gapps
+          ls -lh debs/
+
       - name: "🏗️ Run spacewar-rootfs_build.sh"
         env:
           ENABLE_DROIDLOOM: ${{ github.event.inputs.enable_droidloom }}
@@ -94,8 +101,18 @@ jobs:
 
       - name: "📂 Prepare release files"
         run: |
-          sudo chown -R "$(id -u):$(id -g)" out
+          sudo chown -R "$(id -u):$(id -g)" out debs 2>/dev/null || true
           ls -lh out/
+          ls -lh debs/ 2>/dev/null || true
+
+      - name: "📤 Upload Droidloom .deb packages"
+        if: ${{ github.event.inputs.enable_droidloom != 'false' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: droidloom-debian-arm64-debs
+          path: debs/*.deb
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: "📤 Upload build artifacts"
         uses: actions/upload-artifact@v4
