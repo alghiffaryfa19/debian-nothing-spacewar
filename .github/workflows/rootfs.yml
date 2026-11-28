@@ -62,16 +62,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KERNEL_VER: ${{ github.event.inputs.kernel_version || '7.2' }}
         run: |
-          for tag in "msm-modem" "bootmac" "q6voiced" "pd-mapper" "soc-qcom" "kernel-${KERNEL_VER}"; do
+          for tag in "msm-modem" "bootmac" "q6voiced" "kernel-${KERNEL_VER}"; do
             echo "⬇️ Downloading .deb packages from release: ${tag}"
             gh release download "${tag}" --pattern "*.deb" --repo "${{ github.repository }}" --clobber || true
           done
-          # Build local pd-mapper / soc-qcom / alsa-nothing-spacewar fallback if not in release
-          if [[ ! -f pd-mapper.deb && -d pd-mapper ]]; then
-            chmod 755 pd-mapper/DEBIAN/postinst pd-mapper/DEBIAN/postrm
-            dpkg-deb --build --root-owner-group pd-mapper
-          fi
-          if [[ ! -f soc-qcom.deb && -d soc-qcom ]]; then
+          # Always build soc-qcom and alsa-nothing-spacewar from repo (uses protection-domain-mapper from Mobian/Debian)
+          if [[ -d soc-qcom ]]; then
             dpkg-deb --build --root-owner-group soc-qcom
           fi
           if [[ -d alsa-nothing-spacewar ]]; then

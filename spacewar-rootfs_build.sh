@@ -98,15 +98,33 @@ EOF
 chmod +x "$ROOTFS/usr/sbin/policy-rc.d"
 
 # ==============================================================================
-# 2. Install Base System, Audio, Modem, and Droidloom Runtime Dependencies
+# 2. Setup Mobian Repository & Install Mobian Base + Hardware Dependencies
+#    (Without Mobian DE — Denial WM is used as the desktop environment)
 # ==============================================================================
-echo "📦 Installing base system, PipeWire, SDDM, and hardware support packages..."
+echo "📦 Setting up Mobian (${DISTRO_SUITE}) repository and installing mobian-base..."
 chroot "$ROOTFS" apt-get update
 DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get install -y \
     systemd systemd-sysv systemd-resolved udev dbus \
     sudo vim wget curl ca-certificates gnupg locales \
+    initramfs-tools mobian-archive-keyring
+
+if [[ -f "$ROOTFS/etc/apt/sources.list.d/mobian.sources" ]]; then
+    sed -i "s/^Suites:.*/Suites: ${DISTRO_SUITE}/" "$ROOTFS/etc/apt/sources.list.d/mobian.sources"
+fi
+install -d -m 0755 "$ROOTFS/etc/apt/preferences.d"
+cat > "$ROOTFS/etc/apt/preferences.d/00-mobian-priority" <<'EOF'
+Package: *
+Pin: release o=Mobian
+Pin-Priority: 700
+EOF
+
+chroot "$ROOTFS" apt-get update
+DEBIAN_FRONTEND=noninteractive chroot "$ROOTFS" apt-get install -y \
+    mobian-base qcom-support-common \
+    plymouth-theme-mobian systemd-repart gstreamer1.0-plugins-base-apps \
+    device-tree-compiler u-boot-tools \
     network-manager openssh-server wpasupplicant \
-    initramfs-tools kmod util-linux e2fsprogs parted \
+    kmod util-linux e2fsprogs parted \
     iproute2 nftables iptables \
     pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber libspa-0.2-bluetooth \
     libpipewire-0.3-0t64 libwayland-server0 libgbm1 libxkbcommon0 libdrm2 \
@@ -221,6 +239,23 @@ QT_IM_MODULE=fcitx
 EOF
 
 # ==============================================================================
+# 4.5 Create Desktop User ("user", non-root) Before Droidloom Installation
+# ==============================================================================
+echo "👤 Creating non-root desktop user '${USERNAME}'..."
+chroot "$ROOTFS" /bin/bash -euxc "
+echo 'root:${ROOTPASS}' | chpasswd
+if ! getent passwd '${USERNAME}' >/dev/null; then
+    useradd -m -s /bin/bash '${USERNAME}'
+fi
+echo '${USERNAME}:${USERPASS}' | chpasswd
+for grp in sudo video render audio plugdev bluetooth netdev input; do
+    if getent group \"\$grp\" >/dev/null; then
+        usermod -aG \"\$grp\" '${USERNAME}'
+    fi
+done
+"
+
+# ==============================================================================
 # 5. Install Droidloom (.deb packages) & Inject LiteGapps (.deb)
 # ==============================================================================
 if [[ "$ENABLE_DROIDLOOM" == "true" ]]; then
@@ -228,13 +263,31 @@ if [[ "$ENABLE_DROIDLOOM" == "true" ]]; then
     DEB_DIR="${DROIDLOOM_DEB_DIR:-$REPO_DIR/debs}"
     chmod +x "$REPO_DIR/droidloom-build_debs.sh"
 
+    run_as_builder() {
+        if [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]]; then
+            sudo -u "$SUDO_USER" env \
+                "PATH=/home/${SUDO_USER}/.cargo/bin:$PATH" \
+                "DROIDLOOM_CACHE_DIR=$WORK_DIR/cache/droidloom" \
+                "DROIDLOOM_DEB_DIR=$DEB_DIR" \
+                "LITEGAPPS_URL=$LITEGAPPS_URL" \
+                "$@"
+        else
+            env \
+                "DROIDLOOM_CACHE_DIR=$WORK_DIR/cache/droidloom" \
+                "DROIDLOOM_DEB_DIR=$DEB_DIR" \
+                "LITEGAPPS_URL=$LITEGAPPS_URL" \
+                "$@"
+        fi
+    }
+
     shopt -s nullglob
     dl_base_debs=("$DEB_DIR"/droidloom-base_*.deb)
     dl_image_debs=("$DEB_DIR"/droidloom-image_*.deb)
     dl_runtime_debs=("$DEB_DIR"/droidloom-runtime_*.deb)
     if (( ${#dl_base_debs[@]} == 0 || ${#dl_image_debs[@]} == 0 || ${#dl_runtime_debs[@]} == 0 )); then
-        DROIDLOOM_CACHE_DIR="$WORK_DIR/cache/droidloom" DROIDLOOM_DEB_DIR="$DEB_DIR" \
-            "$REPO_DIR/droidloom-build_debs.sh" --no-gapps
+        mkdir -p "$WORK_DIR/cache/droidloom" "$DEB_DIR"
+        [[ -n "${SUDO_USER:-}" && "${SUDO_USER}" != "root" ]] && chown -R "$SUDO_USER:$SUDO_USER" "$WORK_DIR/cache/droidloom" "$DEB_DIR"
+        run_as_builder "$REPO_DIR/droidloom-build_debs.sh" --no-gapps
     fi
 
     mkdir -p "$ROOTFS/tmp/droidloom-debs"
@@ -251,9 +304,7 @@ if [[ "$ENABLE_DROIDLOOM" == "true" ]]; then
         if (( ${#dl_gapps_debs[@]} == 0 )); then
             if command -v aapt2 >/dev/null 2>&1 && command -v apksigner >/dev/null 2>&1 \
                 && command -v mkfs.erofs >/dev/null 2>&1 && mkfs.erofs --help 2>&1 | grep -q -- '--mkfs-time'; then
-                DROIDLOOM_CACHE_DIR="$WORK_DIR/cache/droidloom" DROIDLOOM_DEB_DIR="$DEB_DIR" \
-                    LITEGAPPS_URL="$LITEGAPPS_URL" \
-                    "$REPO_DIR/droidloom-build_debs.sh" --gapps-only
+                run_as_builder "$REPO_DIR/droidloom-build_debs.sh" --gapps-only
             elif [[ "$HOST_ARCH" == "aarch64" ]]; then
                 DROIDLOOM_CACHE_DIR="$WORK_DIR/cache/droidloom" DROIDLOOM_DEB_DIR="$DEB_DIR" \
                     LITEGAPPS_URL="$LITEGAPPS_URL" \
@@ -271,6 +322,27 @@ if [[ "$ENABLE_DROIDLOOM" == "true" ]]; then
         '
         echo "✅ droidloom-gapps .deb installed into /usr/lib/droidloom/addons/gapps"
     fi
+
+    # Ensure root ownership (0:0) and non-writable group/other permissions (0755 / go-w)
+    # on system ancestor directories and Droidloom paths (required by droidloom-supervisor).
+    chown 0:0 "$ROOTFS" "$ROOTFS/etc" "$ROOTFS/usr" "$ROOTFS/usr/bin" "$ROOTFS/usr/lib" "$ROOTFS/usr/local" "$ROOTFS/usr/share"
+    chmod 0755 "$ROOTFS" "$ROOTFS/etc" "$ROOTFS/usr" "$ROOTFS/usr/bin" "$ROOTFS/usr/lib" "$ROOTFS/usr/local" "$ROOTFS/usr/share"
+    for dl_dir in \
+        "$ROOTFS/usr/lib/droidloom" \
+        "$ROOTFS/usr/share/droidloom" \
+        "$ROOTFS/usr/share/licenses/droidloom-runtime" \
+        "$ROOTFS/usr/share/licenses/droidloom-image" \
+        "$ROOTFS/usr/share/licenses/droidloom-base" \
+        "$ROOTFS/usr/share/licenses/droidloom-gapps" \
+        "$ROOTFS/usr/share/doc/droidloom" \
+        "$ROOTFS/etc/droidloom"; do
+        if [[ -e "$dl_dir" ]]; then
+            chown -R 0:0 "$dl_dir"
+            chmod -R go-w "$dl_dir"
+        fi
+    done
+    chown 0:0 "$ROOTFS"/usr/bin/droidloom* 2>/dev/null || true
+    chmod 0755 "$ROOTFS"/usr/bin/droidloom* 2>/dev/null || true
 fi
 
 # ==============================================================================
@@ -305,17 +377,6 @@ echo 'en_US.UTF-8 UTF-8' > /etc/locale.gen
 locale-gen
 echo 'LANG=en_US.UTF-8' > /etc/locale.conf
 
-echo 'root:${ROOTPASS}' | chpasswd
-if ! getent passwd '${USERNAME}' >/dev/null; then
-    useradd -m -s /bin/bash '${USERNAME}'
-fi
-echo '${USERNAME}:${USERPASS}' | chpasswd
-for grp in sudo video render audio plugdev bluetooth netdev input; do
-    if getent group \"\$grp\" >/dev/null; then
-        usermod -aG \"\$grp\" '${USERNAME}'
-    fi
-done
-
 systemctl enable ssh NetworkManager systemd-networkd systemd-resolved sddm
 systemctl enable bluetooth power-profiles-daemon avahi-daemon
 systemctl enable spacewar-usb-reprobe.service spacewar-usb-gadget.service spacewar-audio-reprobe.service spacewar-s2idle.service
@@ -324,6 +385,10 @@ if systemctl list-unit-files | grep -q '^msm-modem-uim-selection'; then
     systemctl enable msm-modem-uim-selection.service
 fi
 systemctl disable q6voiced.service 2>/dev/null || true
+systemctl disable mobile-usb-networking.service 2>/dev/null || true
+if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+    plymouth-set-default-theme mobian || true
+fi
 systemctl mask systemd-firstboot.service
 systemctl set-default graphical.target
 
